@@ -238,7 +238,7 @@ class AddFileActivity :
         }
 
         val upgradeLayout = binding.upgradeLayout.root
-        upgradeLayout.findViewById<View>(R.id.btnClose).setOnClickListener {
+        binding.upgradeLayout.btnClose.setOnClickListener {
             eventHorizon.track(
                 UpgradeBannerDismissedEvent(
                     source = SourceView.FILES.analyticsValue,
