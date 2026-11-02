@@ -271,6 +271,7 @@ internal fun AccountButtonRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     buttonModifier: Modifier = Modifier.fillMaxWidth(),
+    progressSize: Dp = 24.dp,
 ) {
     val colors = MaterialTheme.theme.colors
     val disabledColor = Color(LocalContext.current.getThemeColor(UR.attr.primary_interactive_01_disabled))
@@ -291,21 +292,29 @@ internal fun AccountButtonRow(
                 .alpha(if (isValid) 1f else 0.2f),
         )
         if (isProgressVisible) {
-            val tint = progressColor.toArgb()
-            AndroidView(
-                factory = { context ->
-                    ProgressBar(context, null, 0, androidx.appcompat.R.style.Widget_AppCompat_ProgressBar).apply {
-                        isIndeterminate = true
-                    }
-                },
-                update = { it.indeterminateTintList = ColorStateList.valueOf(tint) },
+            AccountProgressBar(
+                color = progressColor,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .padding(start = progressStart)
-                    .size(24.dp),
+                    .size(progressSize),
             )
         }
     }
+}
+
+@Composable
+internal fun AccountProgressBar(color: Color, modifier: Modifier = Modifier) {
+    val tint = color.toArgb()
+    AndroidView(
+        factory = { context ->
+            ProgressBar(context, null, 0, androidx.appcompat.R.style.Widget_AppCompat_ProgressBar).apply {
+                isIndeterminate = true
+            }
+        },
+        update = { it.indeterminateTintList = ColorStateList.valueOf(tint) },
+        modifier = modifier,
+    )
 }
 
 internal class SignInFieldsState(val restoredViewState: SparseArray<Parcelable>?) {
