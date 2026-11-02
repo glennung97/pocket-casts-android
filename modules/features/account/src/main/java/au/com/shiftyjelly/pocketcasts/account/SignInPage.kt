@@ -43,6 +43,7 @@ import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -206,12 +207,13 @@ private fun CarSignIn(
 }
 
 @Composable
-private fun PhoneErrorText(text: String) {
+internal fun PhoneErrorText(text: String, modifier: Modifier = Modifier) {
     TextViewText(
         text = text,
         fontSize = 15.sp,
         fontWeight = FontWeight.Medium,
         color = MaterialTheme.theme.colors.support05,
+        modifier = modifier,
     )
 }
 
@@ -243,27 +245,53 @@ private fun SignInButtonRow(
     modifier: Modifier = Modifier,
     buttonModifier: Modifier = Modifier.fillMaxWidth(),
 ) {
+    AccountButtonRow(
+        text = stringResource(LR.string.sign_in),
+        isCar = state.isCar,
+        isEnabled = state.isFormValid && !state.isLoading,
+        isValid = state.isFormValid,
+        isProgressVisible = state.isProgressVisible,
+        progressColor = MaterialTheme.theme.colors.primaryInteractive02,
+        progressStart = 16.dp,
+        onClick = onClick,
+        modifier = modifier,
+        buttonModifier = buttonModifier,
+    )
+}
+
+@Composable
+internal fun AccountButtonRow(
+    text: String,
+    isCar: Boolean,
+    isEnabled: Boolean,
+    isValid: Boolean,
+    isProgressVisible: Boolean,
+    progressColor: Color,
+    progressStart: Dp,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    buttonModifier: Modifier = Modifier.fillMaxWidth(),
+) {
     val colors = MaterialTheme.theme.colors
-    val enabled = state.isFormValid && !state.isLoading
     val disabledColor = Color(LocalContext.current.getThemeColor(UR.attr.primary_interactive_01_disabled))
     Box(modifier = modifier.fillMaxWidth()) {
         ViewMaterialButton(
-            text = stringResource(LR.string.sign_in),
+            text = text,
             onClick = onClick,
-            backgroundColor = if (enabled) colors.primaryInteractive01 else disabledColor.compositeOver(disabledColor),
+            backgroundColor = if (isEnabled) colors.primaryInteractive01 else disabledColor.compositeOver(disabledColor),
             textColor = colors.primaryInteractive02,
-            fontSize = if (state.isCar) dimensionResource(CR.dimen.car_body2_size).value.sp else 18.sp,
+            fontSize = if (isCar) dimensionResource(CR.dimen.car_body2_size).value.sp else 18.sp,
             letterSpacing = 0.02.em,
             cornerRadius = 12.dp,
-            elevation = if (enabled) 2.dp else 0.dp,
+            elevation = if (isEnabled) 2.dp else 0.dp,
             verticalPadding = 16.dp,
-            enabled = enabled,
+            enabled = isEnabled,
             modifier = buttonModifier
                 .align(Alignment.Center)
-                .alpha(if (state.isFormValid) 1f else 0.2f),
+                .alpha(if (isValid) 1f else 0.2f),
         )
-        if (state.isProgressVisible) {
-            val tint = colors.primaryInteractive02.toArgb()
+        if (isProgressVisible) {
+            val tint = progressColor.toArgb()
             AndroidView(
                 factory = { context ->
                     ProgressBar(context, null, 0, androidx.appcompat.R.style.Widget_AppCompat_ProgressBar).apply {
@@ -273,7 +301,7 @@ private fun SignInButtonRow(
                 update = { it.indeterminateTintList = ColorStateList.valueOf(tint) },
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .padding(start = 16.dp)
+                    .padding(start = progressStart)
                     .size(24.dp),
             )
         }
@@ -365,7 +393,7 @@ internal fun SignInFields(
     )
 }
 
-private fun signInField(context: Context, layoutId: Int, overlay: Int, id: Int, hint: Int, variation: Int, isCar: Boolean): TextInputLayout {
+internal fun signInField(context: Context, layoutId: Int, overlay: Int, id: Int, hint: Int, variation: Int, isCar: Boolean, drawablePadding: Float = 16f): TextInputLayout {
     val layout = TextInputLayout(ContextThemeWrapper(context, overlay)).apply {
         this.id = layoutId
     }
@@ -376,7 +404,7 @@ private fun signInField(context: Context, layoutId: Int, overlay: Int, id: Int, 
             letterSpacing = 0f
         }
         setTextColor(context.getThemeColor(UR.attr.primary_text_02))
-        compoundDrawablePadding = context.dimensionPx(16f)
+        compoundDrawablePadding = context.dimensionPx(drawablePadding)
         setHint(hint)
         val typeface = typeface
         inputType = InputType.TYPE_CLASS_TEXT or variation
