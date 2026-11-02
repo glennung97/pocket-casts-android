@@ -4,4 +4,9 @@
     <item name="txtEmail" type="id" />
     <item name="passwordLayout" type="id" />
     <item name="txtPwd" type="id" />
+    <item name="toolbarLayout" type="id" />
+    <item name="toolbar" type="id" />
+    <item name="nav_host_fragment" type="id" />
+    <item name="btnClose" type="id" />
+    <item name="imgLogo" type="id" />
 </resources>
