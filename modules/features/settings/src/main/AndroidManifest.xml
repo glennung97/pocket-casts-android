@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
+        <activity
+            android:name="au.com.shiftyjelly.pocketcasts.settings.notes.NotesActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:label="聽記筆記本"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>

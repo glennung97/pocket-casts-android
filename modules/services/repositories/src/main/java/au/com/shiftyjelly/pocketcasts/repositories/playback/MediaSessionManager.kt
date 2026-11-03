@@ -41,6 +41,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.BuildConfig
 import au.com.shiftyjelly.pocketcasts.repositories.bookmark.BookmarkHelper
 import au.com.shiftyjelly.pocketcasts.repositories.bookmark.BookmarkManager
 import au.com.shiftyjelly.pocketcasts.repositories.extensions.getArtworkUrl
+import au.com.shiftyjelly.pocketcasts.repositories.notes.SaveToNotes
 import au.com.shiftyjelly.pocketcasts.repositories.playback.auto.AutoConverter
 import au.com.shiftyjelly.pocketcasts.repositories.playback.auto.PackageValidator
 import au.com.shiftyjelly.pocketcasts.repositories.playback.auto.asAlbumArtContentUri
@@ -918,6 +919,16 @@ class MediaSessionManager(
                 )
             }
 
+            if (currentEpisode != null) {
+                buttons.add(
+                    CommandButton.Builder(CommandButton.ICON_UNDEFINED)
+                        .setSessionCommand(SessionCommand(APP_ACTION_SAVE_TO_NOTES, Bundle.EMPTY))
+                        .setDisplayName(SAVE_TO_NOTES_LABEL)
+                        .setCustomIconResId(IR.drawable.ic_bookmark)
+                        .build(),
+                )
+            }
+
             val visibleCount = if (settings.customMediaActionsVisibility.value) MediaNotificationControls.MAX_VISIBLE_OPTIONS else 0
             settings.mediaControlItems.value.take(visibleCount).forEach { mediaControl ->
                 buildCustomActionButton(mediaControl, currentEpisode)?.let(buttons::add)
@@ -1314,6 +1325,8 @@ class MediaSessionManager(
             addCustomAction(stateBuilder, APP_ACTION_SKIP_FWD, "Skip forward", IR.drawable.media_skipforward)
         }
 
+        addCustomAction(stateBuilder, APP_ACTION_SAVE_TO_NOTES, SAVE_TO_NOTES_LABEL, IR.drawable.ic_bookmark)
+
         val visibleCount = if (settings.customMediaActionsVisibility.value) MediaNotificationControls.MAX_VISIBLE_OPTIONS else 0
         settings.mediaControlItems.value.take(visibleCount).forEach { mediaControl ->
             when (mediaControl) {
@@ -1587,6 +1600,10 @@ class MediaSessionManager(
                 APP_ACTION_PLAY_NEXT -> enqueueCommand("custom action: play next") {
                     playbackManager.playNextInQueue()
                 }
+
+                APP_ACTION_SAVE_TO_NOTES -> enqueueCommand("custom action: save to notes") {
+                    playbackManager.saveCurrentMomentToNotes(context)
+                }
             }
         }
 
@@ -1686,6 +1703,15 @@ internal const val APP_ACTION_MARK_AS_PLAYED = "markAsPlayed"
 internal const val APP_ACTION_CHANGE_SPEED = "changeSpeed"
 internal const val APP_ACTION_ARCHIVE = "archive"
 internal const val APP_ACTION_PLAY_NEXT = "playNext"
+internal const val APP_ACTION_SAVE_TO_NOTES = "tingjiSaveToNotes"
+internal const val SAVE_TO_NOTES_LABEL = "存到筆記"
+
+/** Saves the current position of the playing episode as a note clip. */
+internal suspend fun PlaybackManager.saveCurrentMomentToNotes(context: Context) {
+    val episode = getCurrentEpisode() ?: return
+    val positionMs = getCurrentTimeMs(episode).toLong()
+    SaveToNotes.capture(context, episode, positionMs)
+}
 
 private val NOTHING_PLAYING: MediaMetadataCompat = MediaMetadataCompat.Builder()
     .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, "")
