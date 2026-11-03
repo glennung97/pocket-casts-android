@@ -220,6 +220,13 @@ private fun PlayerShelfContent(
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Save to notes is always one tap away, even when the bookmark item is not on the shelf.
+        if (ShelfItem.Bookmark !in shelfItems) {
+            BookmarkButton(
+                playerColors = playerColors,
+                onClick = onAddBookmarkClick,
+            )
+        }
         shelfItems.forEach { shelfItem ->
             when (shelfItem) {
                 ShelfItem.Effects -> EffectsButton(

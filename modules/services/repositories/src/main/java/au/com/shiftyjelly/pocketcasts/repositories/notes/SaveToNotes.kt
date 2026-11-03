@@ -17,6 +17,7 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import au.com.shiftyjelly.pocketcasts.models.entity.BaseEpisode
 import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
+import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import java.util.UUID
 import timber.log.Timber
 import au.com.shiftyjelly.pocketcasts.images.R as IR
@@ -24,12 +25,36 @@ import au.com.shiftyjelly.pocketcasts.images.R as IR
 /** Entry point for the "save to notes" button and the notification that follows it. */
 object SaveToNotes {
     const val NOTES_ACTIVITY_CLASS = "au.com.shiftyjelly.pocketcasts.settings.notes.NotesActivity"
+    const val CLIP_SHEET_ACTIVITY_CLASS = "au.com.shiftyjelly.pocketcasts.settings.notes.NoteClipSheetActivity"
     const val EXTRA_CLIP_ID = "tingji_clip_id"
 
     private const val CHANNEL_ID = "tingji_notes"
 
+    /** Saves the playing episode's current position. Returns the new clip's id, or null when nothing is playing. */
+    suspend fun captureCurrent(context: Context, playbackManager: PlaybackManager): String? {
+        val episode = playbackManager.getCurrentEpisode() ?: return null
+        val positionMs = playbackManager.getCurrentTimeMs(episode).toLong()
+        return capture(context, episode, positionMs)
+    }
+
+    /** Plays the clip's episode from the start of its selection. */
+    suspend fun playClip(playbackManager: PlaybackManager, clip: NoteClip) {
+        val positionMs = (if (clip.status == NoteClipStatus.Ready) clip.selectionStartMs else clip.bookmarkMs).toInt()
+        if (playbackManager.getCurrentEpisode()?.uuid != clip.episodeUuid) {
+            playbackManager.playNowSuspend(episodeUuid = clip.episodeUuid)
+        }
+        playbackManager.seekToTimeMsSuspend(positionMs)
+        playbackManager.playIfNotPlaying()
+    }
+
+    /** The pop-up that shows one clip over whatever screen is open. */
+    fun clipSheetIntent(context: Context, clipId: String): Intent {
+        return Intent().setClassName(context.packageName, CLIP_SHEET_ACTIVITY_CLASS)
+            .putExtra(EXTRA_CLIP_ID, clipId)
+    }
+
     /** Saves the moment at [positionMs] of [episode] and starts transcribing it in the background. */
-    fun capture(context: Context, episode: BaseEpisode, positionMs: Long) {
+    fun capture(context: Context, episode: BaseEpisode, positionMs: Long): String {
         val clip = NoteClip(
             id = UUID.randomUUID().toString(),
             episodeUuid = episode.uuid,
@@ -43,6 +68,7 @@ object SaveToNotes {
         NoteClipStore.get(context).save(clip)
         showProcessing(context, clip)
         enqueue(context, clip.id, NoteClipMode.Initial)
+        return clip.id
     }
 
     fun enqueue(context: Context, clipId: String, mode: NoteClipMode) {

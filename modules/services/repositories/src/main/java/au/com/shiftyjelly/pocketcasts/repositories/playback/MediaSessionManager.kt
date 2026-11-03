@@ -1708,9 +1708,7 @@ internal const val SAVE_TO_NOTES_LABEL = "存到筆記"
 
 /** Saves the current position of the playing episode as a note clip. */
 internal suspend fun PlaybackManager.saveCurrentMomentToNotes(context: Context) {
-    val episode = getCurrentEpisode() ?: return
-    val positionMs = getCurrentTimeMs(episode).toLong()
-    SaveToNotes.capture(context, episode, positionMs)
+    SaveToNotes.captureCurrent(context, this)
 }
 
 private val NOTHING_PLAYING: MediaMetadataCompat = MediaMetadataCompat.Builder()

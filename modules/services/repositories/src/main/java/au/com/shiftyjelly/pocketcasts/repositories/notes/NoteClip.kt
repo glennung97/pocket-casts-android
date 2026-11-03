@@ -55,6 +55,7 @@ data class NoteClip(
     val autoExtendedAfter: Int = 0,
     val aiReason: String? = null,
     val speakerNames: Map<String, String> = emptyMap(),
+    val transcriptSource: TranscriptSource? = null,
 ) {
     val sentences: List<NoteSentence> by lazy { NoteTranscript.sentences(words) }
 
@@ -107,6 +108,7 @@ data class NoteClip(
         put("autoExtendedAfter", autoExtendedAfter)
         put("aiReason", aiReason ?: JSONObject.NULL)
         put("speakerNames", JSONObject(speakerNames))
+        put("transcriptSource", transcriptSource?.name ?: JSONObject.NULL)
     }
 
     companion object {
@@ -148,9 +150,16 @@ data class NoteClip(
                 autoExtendedAfter = json.optInt("autoExtendedAfter"),
                 aiReason = json.nullableString("aiReason"),
                 speakerNames = speakerNames,
+                transcriptSource = TranscriptSource.entries.firstOrNull { it.name == json.nullableString("transcriptSource") },
             )
         }
     }
+}
+
+enum class TranscriptSource {
+    /** The transcript the podcast publishes with the episode. Free, but its timing may drift with inserted ads. */
+    Publisher,
+    ElevenLabs,
 }
 
 internal fun JSONObject.nullableString(key: String): String? {

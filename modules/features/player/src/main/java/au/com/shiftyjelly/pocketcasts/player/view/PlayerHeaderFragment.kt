@@ -115,6 +115,7 @@ import au.com.shiftyjelly.pocketcasts.player.viewmodel.ShelfSharedViewModel
 import au.com.shiftyjelly.pocketcasts.player.viewmodel.ShelfSharedViewModel.NavigationState
 import au.com.shiftyjelly.pocketcasts.player.viewmodel.ShelfSharedViewModel.SnackbarMessage
 import au.com.shiftyjelly.pocketcasts.reimagine.ShareDialogFragment
+import au.com.shiftyjelly.pocketcasts.repositories.notes.SaveToNotes
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackNoticeInfo
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackNoticeType
@@ -426,6 +427,14 @@ class PlayerHeaderFragment :
                             val bookmarkArguments = viewModel.createBookmarkArguments()
                             if (bookmarkArguments != null) {
                                 activityLauncher.launch(BookmarkActivity.launchIntent(requireContext(), bookmarkArguments))
+                            }
+                        }
+
+                        NavigationState.CaptureNote -> {
+                            val context = requireContext()
+                            val clipId = SaveToNotes.captureCurrent(context, playbackManager)
+                            if (clipId != null) {
+                                startActivity(SaveToNotes.clipSheetIntent(context, clipId))
                             }
                         }
 

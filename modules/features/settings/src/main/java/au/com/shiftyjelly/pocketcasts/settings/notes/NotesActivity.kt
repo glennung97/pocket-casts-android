@@ -3,16 +3,25 @@ package au.com.shiftyjelly.pocketcasts.settings.notes
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.lifecycleScope
+import au.com.shiftyjelly.pocketcasts.compose.AppTheme
 import au.com.shiftyjelly.pocketcasts.compose.AppThemeWithBackground
+import au.com.shiftyjelly.pocketcasts.repositories.notes.NoteClip
 import au.com.shiftyjelly.pocketcasts.repositories.notes.NoteClipStore
 import au.com.shiftyjelly.pocketcasts.repositories.notes.SaveToNotes
+import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import au.com.shiftyjelly.pocketcasts.ui.theme.Theme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import kotlinx.coroutines.launch
 
 /** The notebook for clips saved with "save to notes", plus its settings. */
 @AndroidEntryPoint
@@ -20,7 +29,11 @@ class NotesActivity : AppCompatActivity() {
     @Inject
     lateinit var theme: Theme
 
+    @Inject
+    lateinit var playbackManager: PlaybackManager
+
     private val backStack = mutableStateListOf<NotesScreen>(NotesScreen.Notebook)
+    private var sheetClipId by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,7 +50,11 @@ class NotesActivity : AppCompatActivity() {
                     AppThemeWithBackground(theme.activeTheme) {
                         NotesApp(
                             screen = backStack.last(),
+                            sheetClipId = sheetClipId,
                             onNavigate = { backStack.add(it) },
+                            onOpenClip = { sheetClipId = it },
+                            onCloseClip = { sheetClipId = null },
+                            onPlay = { clip -> play(clip) },
                             onBack = this@NotesActivity::goBack,
                         )
                     }
@@ -60,16 +77,56 @@ class NotesActivity : AppCompatActivity() {
         backStack.add(NotesScreen.Episode(episodeUuid = clip.episodeUuid, focusClipId = clip.id))
     }
 
+    private fun play(clip: NoteClip) {
+        lifecycleScope.launch { SaveToNotes.playClip(playbackManager, clip) }
+    }
+
     private fun goBack() {
-        if (backStack.size > 1) {
-            backStack.removeAt(backStack.lastIndex)
-        } else {
-            finish()
+        when {
+            sheetClipId != null -> sheetClipId = null
+            backStack.size > 1 -> backStack.removeAt(backStack.lastIndex)
+            else -> finish()
         }
     }
 
     companion object {
         fun intent(context: Context) = Intent(context, NotesActivity::class.java)
+    }
+}
+
+/** Shows one clip as a pop-up over the player right after it is saved. */
+@AndroidEntryPoint
+class NoteClipSheetActivity : ComponentActivity() {
+    @Inject
+    lateinit var theme: Theme
+
+    @Inject
+    lateinit var playbackManager: PlaybackManager
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val clipId = intent.getStringExtra(SaveToNotes.EXTRA_CLIP_ID)
+        if (clipId == null) {
+            finish()
+            return
+        }
+        setContentView(
+            ComposeView(this).apply {
+                setContent {
+                    AppTheme(theme.activeTheme) {
+                        NoteClipSheet(
+                            clipId = clipId,
+                            onDismiss = { finish() },
+                            onPlay = { clip -> lifecycleScope.launch { SaveToNotes.playClip(playbackManager, clip) } },
+                            onOpenNotebook = {
+                                startActivity(NotesActivity.intent(this@NoteClipSheetActivity).putExtra(SaveToNotes.EXTRA_CLIP_ID, clipId))
+                                finish()
+                            },
+                        )
+                    }
+                }
+            },
+        )
     }
 }
 

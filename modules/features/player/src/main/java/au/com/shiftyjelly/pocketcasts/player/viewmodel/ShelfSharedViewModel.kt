@@ -395,8 +395,10 @@ class ShelfSharedViewModel @Inject constructor(
         overflowMenuOpenState.value = isOpen
     }
 
+    // In this build the bookmark button saves the moment to notes (transcribed and summarised) instead of
+    // the Plus bookmark, so it works without a subscription.
     fun onAddBookmarkClick(
-        onboardingUpgradeSource: OnboardingUpgradeSource,
+        @Suppress("UNUSED_PARAMETER") onboardingUpgradeSource: OnboardingUpgradeSource,
         source: ShelfItemSource,
     ) {
         if (FeatureFlag.isEnabled(Feature.SMART_BOOKMARKS)) {
@@ -404,12 +406,7 @@ class ShelfSharedViewModel @Inject constructor(
         }
         trackShelfAction(ShelfItem.Bookmark, source)
         viewModelScope.launch {
-            val isPaidUser = settings.cachedSubscription.value != null
-            if (isPaidUser) {
-                _navigationState.emit(NavigationState.ShowAddBookmark)
-            } else {
-                _navigationState.emit(NavigationState.StartUpsellFlow(onboardingUpgradeSource))
-            }
+            _navigationState.emit(NavigationState.CaptureNote)
         }
     }
 
@@ -605,6 +602,7 @@ class ShelfSharedViewModel @Inject constructor(
         data object ShowMoreActions : NavigationState
         data object ShowStreamingWarningDialog : NavigationState
         data object ShowAddBookmark : NavigationState
+        data object CaptureNote : NavigationState
         data class StartUpsellFlow(val source: OnboardingUpgradeSource) : NavigationState
         data class AddEpisodeToPlaylist(val episodeUuid: String, val podcastUuid: String) : NavigationState
         data class ShowEpisodeChat(

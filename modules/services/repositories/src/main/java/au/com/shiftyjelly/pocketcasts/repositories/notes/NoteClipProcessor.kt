@@ -10,28 +10,44 @@ enum class NoteClipMode {
     ExtendBefore,
     ExtendAfter,
     Reanalyze,
+
+    /** Start over with ElevenLabs, for when the publisher's transcript does not line up with the audio. */
+    RetranscribeWithElevenLabs,
 }
 
 /** Transcribes a clip, asks the AI what matters, and pulls in more audio when the point is cut off. */
-internal class NoteClipProcessor(private val context: Context) {
+internal class NoteClipProcessor(
+    private val context: Context,
+    /** The publisher's transcript as words, when the episode has one with timings. */
+    private val publisherWords: List<NoteWord>?,
+) {
+    private var usedElevenLabs = false
 
     fun process(clip: NoteClip, episode: BaseEpisode, mode: NoteClipMode): NoteClip {
         val config = NotesConfig.get(context)
-        if (config.elevenLabsKey.isBlank()) {
+        if (publisherWords == null && config.elevenLabsKey.isBlank()) {
             throw NotesSetupException("請先在聽記設定填入 ElevenLabs API key")
         }
-        val source = audioSource(episode)
+        val source by lazy { audioSource(episode) }
         val durationMs = episode.durationMs.toLong().takeIf { it > 0 }
 
         var current = when (mode) {
-            NoteClipMode.Initial -> {
+            NoteClipMode.Initial, NoteClipMode.RetranscribeWithElevenLabs -> {
                 val start = (clip.bookmarkMs - BEFORE_MS).coerceAtLeast(0)
                 val end = (clip.bookmarkMs + AFTER_MS).let { if (durationMs != null) it.coerceAtMost(durationMs) else it }
-                val words = transcribe(config, source, start, end)
-                clip.copy(words = words, transcribedStartMs = start, transcribedEndMs = end)
+                val words = transcribe(config, { source }, start, end, allowPublisher = mode == NoteClipMode.Initial)
+                clip.copy(
+                    words = words,
+                    transcribedStartMs = start,
+                    transcribedEndMs = end,
+                    autoExtendedBefore = 0,
+                    autoExtendedAfter = 0,
+                    aiReason = null,
+                    transcriptSource = if (usedElevenLabs) TranscriptSource.ElevenLabs else TranscriptSource.Publisher,
+                )
             }
-            NoteClipMode.ExtendBefore -> extendBefore(config, source, clip)
-            NoteClipMode.ExtendAfter -> extendAfter(config, source, clip, durationMs)
+            NoteClipMode.ExtendBefore -> extendBefore(config, { source }, clip)
+            NoteClipMode.ExtendAfter -> extendAfter(config, { source }, clip, durationMs)
             NoteClipMode.Reanalyze -> clip
         }
         if (current.words.none { !it.isSpacing }) {
@@ -40,7 +56,7 @@ internal class NoteClipProcessor(private val context: Context) {
 
         var analysis = analyze(config, current)
         // Only the first pass fills gaps on its own; manual extends already say where the user wants more.
-        if (mode == NoteClipMode.Initial) {
+        if (mode == NoteClipMode.Initial || mode == NoteClipMode.RetranscribeWithElevenLabs) {
             while (true) {
                 val canGoBack = current.transcribedStartMs > 0 && current.autoExtendedBefore < MAX_AUTO_EXTENDS
                 val canGoForward = (durationMs == null || current.transcribedEndMs < durationMs) &&
@@ -49,10 +65,10 @@ internal class NoteClipProcessor(private val context: Context) {
                 val goForward = analysis.needMoreAfter && canGoForward
                 if (!goBack && !goForward) break
                 if (goBack) {
-                    current = extendBefore(config, source, current).copy(autoExtendedBefore = current.autoExtendedBefore + 1)
+                    current = extendBefore(config, { source }, current).copy(autoExtendedBefore = current.autoExtendedBefore + 1)
                 }
                 if (goForward) {
-                    current = extendAfter(config, source, current, durationMs).copy(autoExtendedAfter = current.autoExtendedAfter + 1)
+                    current = extendAfter(config, { source }, current, durationMs).copy(autoExtendedAfter = current.autoExtendedAfter + 1)
                 }
                 analysis = analyze(config, current)
             }
@@ -60,24 +76,42 @@ internal class NoteClipProcessor(private val context: Context) {
         return apply(current, analysis)
     }
 
-    private fun extendBefore(config: NotesConfig, source: String, clip: NoteClip): NoteClip {
+    private fun extendBefore(config: NotesConfig, source: () -> String, clip: NoteClip): NoteClip {
         if (clip.transcribedStartMs <= 0) return clip
         val start = (clip.transcribedStartMs - EXTEND_MS).coerceAtLeast(0)
-        val words = transcribe(config, source, start, clip.transcribedStartMs).filter { it.startMs < clip.transcribedStartMs }
+        val allowPublisher = clip.transcriptSource == TranscriptSource.Publisher
+        val words = transcribe(config, source, start, clip.transcribedStartMs, allowPublisher)
+            .filter { it.startMs < clip.transcribedStartMs }
         return clip.copy(words = words + clip.words, transcribedStartMs = start)
     }
 
-    private fun extendAfter(config: NotesConfig, source: String, clip: NoteClip, durationMs: Long?): NoteClip {
+    private fun extendAfter(config: NotesConfig, source: () -> String, clip: NoteClip, durationMs: Long?): NoteClip {
         val end = (clip.transcribedEndMs + EXTEND_MS).let { if (durationMs != null) it.coerceAtMost(durationMs) else it }
         if (end <= clip.transcribedEndMs) return clip
-        val words = transcribe(config, source, clip.transcribedEndMs, end).filter { it.startMs >= clip.transcribedEndMs }
+        val allowPublisher = clip.transcriptSource == TranscriptSource.Publisher
+        val words = transcribe(config, source, clip.transcribedEndMs, end, allowPublisher)
+            .filter { it.startMs >= clip.transcribedEndMs }
         return clip.copy(words = clip.words + words, transcribedEndMs = end)
     }
 
-    private fun transcribe(config: NotesConfig, source: String, startMs: Long, endMs: Long): List<NoteWord> {
+    private fun transcribe(
+        config: NotesConfig,
+        source: () -> String,
+        startMs: Long,
+        endMs: Long,
+        allowPublisher: Boolean,
+    ): List<NoteWord> {
+        if (allowPublisher && publisherWords != null) {
+            val slice = publisherWords.filter { it.endMs > startMs && it.startMs < endMs }
+            if (slice.any { !it.isSpacing }) return slice
+        }
+        if (config.elevenLabsKey.isBlank()) {
+            throw NotesSetupException("這段沒有節目逐字稿，請先在聽記設定填入 ElevenLabs API key")
+        }
+        usedElevenLabs = true
         val wav = File.createTempFile("tingji_clip", ".wav", context.cacheDir)
         try {
-            AudioSegmentExtractor.extractWav(source, startMs, endMs, wav)
+            AudioSegmentExtractor.extractWav(source(), startMs, endMs, wav)
             return ElevenLabsTranscriber.transcribe(config.elevenLabsKey, wav, offsetMs = startMs).words
         } finally {
             wav.delete()

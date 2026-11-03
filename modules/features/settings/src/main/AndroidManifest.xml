@@ -7,5 +7,13 @@
             android:launchMode="singleTask"
             android:label="聽記筆記本"
             android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name="au.com.shiftyjelly.pocketcasts.settings.notes.NoteClipSheetActivity"
+            android:exported="false"
+            android:label="存到筆記"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>
