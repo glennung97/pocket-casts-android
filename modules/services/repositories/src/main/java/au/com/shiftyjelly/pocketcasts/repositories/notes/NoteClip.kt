@@ -202,7 +202,8 @@ object NoteTranscript {
             }
             text.append(word.text)
             endMs = word.endMs
-            if (word.text.trimEnd().lastOrNull() in sentenceEndings) flush()
+            val lastChar = word.text.trimEnd().lastOrNull()
+            if (lastChar != null && lastChar in sentenceEndings) flush()
         }
         flush()
         return result
