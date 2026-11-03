@@ -22,6 +22,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import androidx.viewpager2.widget.ViewPager2
 import au.com.shiftyjelly.pocketcasts.analytics.SourceView
+import au.com.shiftyjelly.pocketcasts.models.db.dao.TranscriptDao
 import au.com.shiftyjelly.pocketcasts.compose.PlayerColors
 import au.com.shiftyjelly.pocketcasts.compose.PodcastColors
 import au.com.shiftyjelly.pocketcasts.models.to.Chapter
@@ -31,10 +32,13 @@ import au.com.shiftyjelly.pocketcasts.player.view.bookmark.BookmarksFragment
 import au.com.shiftyjelly.pocketcasts.player.view.chapters.ChaptersFragment
 import au.com.shiftyjelly.pocketcasts.player.view.chapters.ChaptersViewModel
 import au.com.shiftyjelly.pocketcasts.player.view.chapters.ChaptersViewModel.Mode.Player
+import au.com.shiftyjelly.pocketcasts.player.view.notes.PlayerTingjiNotesFragment
+import au.com.shiftyjelly.pocketcasts.player.view.notes.PlayerTingjiTranscriptFragment
 import au.com.shiftyjelly.pocketcasts.player.viewmodel.BookmarksViewModel
 import au.com.shiftyjelly.pocketcasts.player.viewmodel.PlayerViewModel
 import au.com.shiftyjelly.pocketcasts.player.viewmodel.ShelfSharedViewModel
 import au.com.shiftyjelly.pocketcasts.preferences.Settings
+import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import au.com.shiftyjelly.pocketcasts.repositories.playback.UpNextSource
 import au.com.shiftyjelly.pocketcasts.ui.helper.FragmentHostListener
 import au.com.shiftyjelly.pocketcasts.ui.helper.NavigationBarColor
@@ -55,6 +59,8 @@ import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.withCreationCallback
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -70,6 +76,12 @@ class PlayerContainerFragment :
 
     @Inject
     lateinit var eventHorizon: EventHorizon
+
+    @Inject
+    lateinit var playbackManager: PlaybackManager
+
+    @Inject
+    lateinit var transcriptDao: TranscriptDao
 
     private val bookmarksViewModel: BookmarksViewModel by viewModels()
 
@@ -204,6 +216,8 @@ class PlayerContainerFragment :
                         PlayerTabType.Bookmarks
                     }
 
+                    adapter.isTranscriptTab(position) -> null
+
                     adapter.isChaptersTab(position) -> {
                         if (previousPosition != INVALID_TAB_POSITION) {
                             chaptersViewModel.trackChaptersShown(ChaptersShownSource.FullscreenPlayer)
@@ -265,6 +279,25 @@ class PlayerContainerFragment :
                 chaptersViewModel.uiState.collect {
                     adapter.updateChapters(addChapters = it.showChaptersTab)
                 }
+            }
+        }
+
+        // The 逐字稿 tab only shows when the episode has the publisher's own transcript.
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                playbackManager.playbackStateFlow
+                    .map { it.episodeUuid }
+                    .distinctUntilChanged()
+                    .collectLatest { episodeUuid ->
+                        if (episodeUuid.isBlank()) {
+                            adapter.updateTranscript(addTranscript = false)
+                        } else {
+                            transcriptDao.observeTranscripts(episodeUuid)
+                                .map { transcripts -> transcripts.any { !it.isGenerated } }
+                                .distinctUntilChanged()
+                                .collect { adapter.updateTranscript(addTranscript = it) }
+                        }
+                    }
             }
         }
 
@@ -406,7 +439,10 @@ private class ViewPagerAdapter(fragmentManager: FragmentManager, lifecycle: Life
     private sealed class Section(@StringRes val titleRes: Int) {
         data object Player : Section(LR.string.player_tab_playing)
         data object Notes : Section(LR.string.player_tab_notes)
-        data object Bookmarks : Section(LR.string.player_tab_bookmarks)
+
+        // In this build the Plus-only bookmarks tab is replaced by the save-to-notes clips.
+        data object Bookmarks : Section(LR.string.player_tab_tingji_notes)
+        data object Transcript : Section(LR.string.player_tab_tingji_transcript)
         data object Chapters : Section(LR.string.player_tab_chapters)
     }
 
@@ -429,18 +465,24 @@ private class ViewPagerAdapter(fragmentManager: FragmentManager, lifecycle: Life
         updateSections(hasChapters = addChapters)
     }
 
+    fun updateTranscript(addTranscript: Boolean) {
+        updateSections(hasTranscript = addTranscript)
+    }
+
     // Stable IDs via getItemId/containsItem allow FragmentStateAdapter to efficiently diff fragments
     @SuppressLint("NotifyDataSetChanged")
     private fun updateSections(
         hasNotes: Boolean = sections.contains(Section.Notes),
         hasChapters: Boolean = sections.contains(Section.Chapters),
+        hasTranscript: Boolean = sections.contains(Section.Transcript),
     ) {
         val currentSections = sections
         val newSections = buildList {
             add(Section.Player)
             if (hasNotes) add(Section.Notes)
-            if (hasChapters) add(Section.Chapters)
             add(Section.Bookmarks)
+            if (hasTranscript) add(Section.Transcript)
+            if (hasChapters) add(Section.Chapters)
         }
         if (currentSections != newSections) {
             sections = newSections
@@ -464,7 +506,8 @@ private class ViewPagerAdapter(fragmentManager: FragmentManager, lifecycle: Life
         return when (sections[position]) {
             is Section.Player -> PlayerHeaderFragment()
             is Section.Notes -> NotesFragment()
-            is Section.Bookmarks -> BookmarksFragment.newInstance(SourceView.PLAYER)
+            is Section.Bookmarks -> PlayerTingjiNotesFragment()
+            is Section.Transcript -> PlayerTingjiTranscriptFragment()
             is Section.Chapters -> ChaptersFragment.forPlayer()
         }
     }
@@ -478,4 +521,5 @@ private class ViewPagerAdapter(fragmentManager: FragmentManager, lifecycle: Life
     fun isNotesTab(position: Int) = sections[position] is Section.Notes
     fun isBookmarksTab(position: Int) = sections[position] is Section.Bookmarks
     fun isChaptersTab(position: Int) = sections[position] is Section.Chapters
+    fun isTranscriptTab(position: Int) = sections[position] is Section.Transcript
 }

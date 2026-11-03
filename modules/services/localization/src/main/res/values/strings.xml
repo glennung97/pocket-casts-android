@@ -3068,4 +3068,7 @@
     <string name="device_approve_expired_message">Please go back to your device to generate a new one.</string>
     <string name="device_approve_error_title">Device approval failed</string>
     <string name="device_approve_error_message">Please try again later.</string>
+    <!-- 聽記 (save to notes) -->
+    <string name="player_tab_tingji_notes" translatable="false">筆記</string>
+    <string name="player_tab_tingji_transcript" translatable="false">逐字稿</string>
 </resources>

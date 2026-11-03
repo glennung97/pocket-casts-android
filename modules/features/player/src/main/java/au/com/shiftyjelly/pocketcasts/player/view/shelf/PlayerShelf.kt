@@ -146,6 +146,9 @@ fun PlayerShelf(
         onAddBookmarkClick = {
             shelfSharedViewModel.onAddBookmarkClick(OnboardingUpgradeSource.BOOKMARKS_SHELF_ACTION, ShelfItemSource.Shelf)
         },
+        onOpenNotesClick = {
+            shelfSharedViewModel.onOpenNotesClick()
+        },
         onTranscriptClick = { isTranscriptAvailable: Boolean ->
             shelfSharedViewModel.onTranscriptClick(isTranscriptAvailable, ShelfItemSource.Shelf)
         },
@@ -195,6 +198,7 @@ private fun PlayerShelfContent(
     onArchiveClick: () -> Unit,
     onDownloadClick: () -> Unit,
     onAddBookmarkClick: () -> Unit,
+    onOpenNotesClick: () -> Unit = {},
     onTranscriptClick: (Boolean) -> Unit,
     onVideoToggleClick: () -> Unit,
     onAddToPlaylistClick: () -> Unit,
@@ -220,11 +224,18 @@ private fun PlayerShelfContent(
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Save to notes is always one tap away, even when the bookmark item is not on the shelf.
+        // Save to notes and the notes tab are always one tap away, even when the bookmark item is not on the shelf.
         if (ShelfItem.Bookmark !in shelfItems) {
             BookmarkButton(
                 playerColors = playerColors,
                 onClick = onAddBookmarkClick,
+            )
+        }
+        IconButton(onClick = onOpenNotesClick) {
+            Icon(
+                painterResource(id = IR.drawable.ic_book_open),
+                contentDescription = "看筆記",
+                tint = playerColors.contrast03,
             )
         }
         shelfItems.forEach { shelfItem ->

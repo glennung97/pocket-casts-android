@@ -116,6 +116,7 @@ import au.com.shiftyjelly.pocketcasts.player.viewmodel.ShelfSharedViewModel.Navi
 import au.com.shiftyjelly.pocketcasts.player.viewmodel.ShelfSharedViewModel.SnackbarMessage
 import au.com.shiftyjelly.pocketcasts.reimagine.ShareDialogFragment
 import au.com.shiftyjelly.pocketcasts.repositories.notes.SaveToNotes
+import au.com.shiftyjelly.pocketcasts.settings.notes.NoteSeekBarMarkers
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackNoticeInfo
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackNoticeType
@@ -436,6 +437,10 @@ class PlayerHeaderFragment :
                             if (clipId != null) {
                                 startActivity(SaveToNotes.clipSheetIntent(context, clipId))
                             }
+                        }
+
+                        NavigationState.OpenNotesTab -> {
+                            (parentFragment as? PlayerContainerFragment)?.openBookmarks()
                         }
 
                         is NavigationState.StartUpsellFlow -> startUpsellFlow(navigationState.source)
@@ -1263,22 +1268,29 @@ class PlayerHeaderFragment :
         playerColors: PlayerColors,
         modifier: Modifier = Modifier,
     ) {
-        PlayerSeekBar(
-            playbackPosition = headerData.positionMs.milliseconds,
-            playbackDuration = headerData.durationMs.milliseconds,
-            adjustPlaybackDuration = headerData.adjustRemainingTimeDuration,
-            playbackSpeed = headerData.playbackEffects.playbackSpeed,
-            chapters = headerData.chapters,
-            isBuffering = headerData.isBuffering,
-            bufferedUpTo = headerData.bufferedUpToMs.milliseconds,
-            playerColors = playerColors,
-            onSeekToPosition = { progress, onSeekComplete ->
-                val progressMs = progress.inWholeMilliseconds.toInt()
-                viewModel.seekToMs(progressMs, onSeekComplete)
-                playbackManager.trackPlaybackSeek(progressMs, SourceView.PLAYER)
-            },
-            modifier = modifier,
-        )
+        Box(modifier = modifier) {
+            PlayerSeekBar(
+                playbackPosition = headerData.positionMs.milliseconds,
+                playbackDuration = headerData.durationMs.milliseconds,
+                adjustPlaybackDuration = headerData.adjustRemainingTimeDuration,
+                playbackSpeed = headerData.playbackEffects.playbackSpeed,
+                chapters = headerData.chapters,
+                isBuffering = headerData.isBuffering,
+                bufferedUpTo = headerData.bufferedUpToMs.milliseconds,
+                playerColors = playerColors,
+                onSeekToPosition = { progress, onSeekComplete ->
+                    val progressMs = progress.inWholeMilliseconds.toInt()
+                    viewModel.seekToMs(progressMs, onSeekComplete)
+                    playbackManager.trackPlaybackSeek(progressMs, SourceView.PLAYER)
+                },
+            )
+            // Saved clips drawn over the track; the overlay takes no touches, so seeking works as before.
+            NoteSeekBarMarkers(
+                episodeUuid = headerData.episodeUuid,
+                durationMs = headerData.durationMs.toLong(),
+                color = playerColors.contrast01,
+            )
+        }
     }
 
     @Composable

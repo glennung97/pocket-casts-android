@@ -410,6 +410,12 @@ class ShelfSharedViewModel @Inject constructor(
         }
     }
 
+    fun onOpenNotesClick() {
+        viewModelScope.launch {
+            _navigationState.emit(NavigationState.OpenNotesTab)
+        }
+    }
+
     fun onArchiveClick(
         onArchiveConfirmed: (episode: PodcastEpisode) -> Unit,
         source: ShelfItemSource,
@@ -603,6 +609,7 @@ class ShelfSharedViewModel @Inject constructor(
         data object ShowStreamingWarningDialog : NavigationState
         data object ShowAddBookmark : NavigationState
         data object CaptureNote : NavigationState
+        data object OpenNotesTab : NavigationState
         data class StartUpsellFlow(val source: OnboardingUpgradeSource) : NavigationState
         data class AddEpisodeToPlaylist(val episodeUuid: String, val podcastUuid: String) : NavigationState
         data class ShowEpisodeChat(
@@ -637,6 +644,7 @@ class ShelfSharedViewModel @Inject constructor(
     }
 
     companion object {
-        const val MIN_SHELF_ITEMS_SIZE = 4
+        // Two custom items plus save-to-notes, the notes button and more keeps the shelf uncrowded.
+        const val MIN_SHELF_ITEMS_SIZE = 2
     }
 }
