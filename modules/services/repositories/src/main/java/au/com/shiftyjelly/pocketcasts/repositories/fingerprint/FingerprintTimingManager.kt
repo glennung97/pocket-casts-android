@@ -25,6 +25,7 @@ import au.com.shiftyjelly.pocketcasts.utils.featureflag.FeatureFlag
 import au.com.shiftyjelly.pocketcasts.utils.fingerprint.FingerprintDecodePolicy
 import au.com.shiftyjelly.pocketcasts.utils.fingerprint.FingerprintPolicy
 import com.automattic.eventhorizon.EventHorizon
+import com.automattic.eventhorizon.GeneratedChaptersDownloadTriggerType
 import com.automattic.eventhorizon.SyncedTranscriptsPreparationCompletedEvent
 import com.automattic.eventhorizon.SyncedTranscriptsPreparationFailedEvent
 import com.automattic.eventhorizon.SyncedTranscriptsPreparationStartedEvent
@@ -87,6 +88,15 @@ class FingerprintTimingManager @Inject constructor(
         TRANSCRIPT_VIEW,
         BOOKMARK,
         CHAT,
+        ;
+
+        val downloadTrigger: GeneratedChaptersDownloadTriggerType
+            get() = when (this) {
+                PLAYBACK -> GeneratedChaptersDownloadTriggerType.Playback
+                TRANSCRIPT_VIEW -> GeneratedChaptersDownloadTriggerType.TranscriptView
+                BOOKMARK -> GeneratedChaptersDownloadTriggerType.Bookmark
+                CHAT -> GeneratedChaptersDownloadTriggerType.Chat
+            }
     }
 
     sealed interface State {
@@ -386,7 +396,11 @@ class FingerprintTimingManager @Inject constructor(
      * Decodes only a small search window around the expected location, matches into a scratch
      * accumulator, and never touches the continuous mapping or the public state.
      */
-    suspend fun resolvePlaybackTime(episode: BaseEpisode, referenceTime: Duration): ChapterSeekResult {
+    suspend fun resolvePlaybackTime(
+        episode: BaseEpisode,
+        referenceTime: Duration,
+        trigger: GeneratedChaptersDownloadTriggerType,
+    ): ChapterSeekResult {
         if (decodePolicy.current() != FingerprintPolicy.PLATFORM) {
             return densePlaybackTime(episode.uuid, referenceTime)
                 ?.let { ChapterSeekResult.Resolved(it, usedPrior = true) }
@@ -403,6 +417,7 @@ class FingerprintTimingManager @Inject constructor(
                 audioSource = audioSource,
                 isDownloaded = episode.isDownloaded,
                 referenceTimeSec = referenceTime.toDouble(DurationUnit.SECONDS),
+                trigger = trigger,
             )
         }
     }
@@ -413,6 +428,7 @@ class FingerprintTimingManager @Inject constructor(
         audioSource: String,
         isDownloaded: Boolean,
         referenceTimeSec: Double,
+        trigger: GeneratedChaptersDownloadTriggerType,
     ): ChapterSeekResult {
         val blocked = shouldBlockOnDemandResolve(
             isDownloaded = isDownloaded,
@@ -444,7 +460,7 @@ class FingerprintTimingManager @Inject constructor(
         // Only a definitive 404 reports the reference as missing; transient fetch failures stay retryable.
         val reference = warmReference ?: run {
             val fetched = withTimeoutOrNull(FingerprintConstants.ON_DEMAND_FETCH_TIMEOUT_MS) {
-                loadOrFetchReferenceData(podcastUuid, episodeUuid, audioSource, isDownloaded)
+                loadOrFetchReferenceData(podcastUuid, episodeUuid, audioSource, isDownloaded, trigger)
             } ?: return ChapterSeekResult.Unresolved(ChapterSeekResult.REASON_TIMEOUT)
             val referenceData = when (fetched) {
                 is FingerprintReferenceRetriever.FetchResult.Success -> fetched.data
@@ -548,6 +564,7 @@ class FingerprintTimingManager @Inject constructor(
         episodeUuid: String,
         audioSource: String,
         isDownloaded: Boolean,
+        trigger: GeneratedChaptersDownloadTriggerType,
     ): FingerprintReferenceRetriever.FetchResult {
         if (isDownloaded) {
             referenceRetriever.loadReferenceData(audioSource)?.let { return FingerprintReferenceRetriever.FetchResult.Success(it) }
@@ -559,7 +576,7 @@ class FingerprintTimingManager @Inject constructor(
             referenceRetriever.loadCachedReference(episodeUuid)?.let { return FingerprintReferenceRetriever.FetchResult.Success(it) }
         }
         val baseUrl = "${BuildConfig.SERVER_SHOW_NOTES_URLS}/generated_transcripts/"
-        val fetched = referenceRetriever.fetchReferenceData(baseUrl, podcastUuid, episodeUuid)
+        val fetched = referenceRetriever.fetchReferenceData(baseUrl, podcastUuid, episodeUuid, trigger)
         if (fetched is FingerprintReferenceRetriever.FetchResult.Success) {
             if (isDownloaded) {
                 referenceRetriever.saveReferenceData(fetched.data, audioSource)
@@ -879,7 +896,7 @@ class FingerprintTimingManager @Inject constructor(
         Timber.d("FingerprintTimingManager: fetching reference from server for $episodeUuid")
 
         val baseUrl = "${BuildConfig.SERVER_SHOW_NOTES_URLS}/generated_transcripts/"
-        val fetchResult = referenceRetriever.fetchReferenceData(baseUrl, podcastUuid, episodeUuid)
+        val fetchResult = referenceRetriever.fetchReferenceData(baseUrl, podcastUuid, episodeUuid, trigger.downloadTrigger)
         if (gen != generation) return
 
         val referenceData = when (fetchResult) {
