@@ -1,0 +1,52 @@
+name: Build APK
+
+on:
+  push:
+    branches: [feature/save-to-notes]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # The upstream build points CI builds at Automattic's internal cache; keep that off here.
+      CI: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debugProd APK
+        run: ./gradlew :app:assembleDebugProd --stacktrace
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: app/build/outputs/apk/debugProd/*.apk
+
+      - name: Publish to the latest-build release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK=$(ls app/build/outputs/apk/debugProd/*.apk | head -1)
+          cp "$APK" tingji.apk
+          gh release delete latest-build --yes --cleanup-tag || true
+          gh release create latest-build tingji.apk \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "聽記 最新版" \
+            --notes "Built from ${GITHUB_SHA::7} on ${GITHUB_REF_NAME}."
