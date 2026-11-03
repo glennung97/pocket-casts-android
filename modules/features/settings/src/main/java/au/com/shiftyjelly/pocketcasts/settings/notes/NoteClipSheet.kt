@@ -61,6 +61,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.notes.NoteClipStatus
 import au.com.shiftyjelly.pocketcasts.repositories.notes.NoteClipStore
 import au.com.shiftyjelly.pocketcasts.repositories.notes.NoteTranscript
 import au.com.shiftyjelly.pocketcasts.repositories.notes.TranscriptSource
+import au.com.shiftyjelly.pocketcasts.repositories.transcript.TextSpan
 import au.com.shiftyjelly.pocketcasts.localization.R as LR
 
 /**
@@ -288,71 +289,57 @@ private fun ReadyContent(clip: NoteClip) {
 private fun TranscriptCard(clip: NoteClip) {
     val context = LocalContext.current
     val colors = MaterialTheme.theme.colors
+    val model = remember(clip) { NoteTranscriptModel(clip) }
+    var editingRange by remember(clip.id) { mutableStateOf(false) }
+    var editedPassage by remember(clip.id) { mutableStateOf<TextSpan?>(null) }
+
     Column(
-        verticalArrangement = Arrangement.spacedBy(2.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .background(colors.primaryUi02, RoundedCornerShape(12.dp))
-            .padding(horizontal = 8.dp, vertical = 8.dp),
+            .background(colors.primaryUi02, RoundedCornerShape(12.dp)),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp),
+        ) {
+            TextC70(text = if (editingRange) "調整範圍" else "逐字稿", isUpperCase = false, modifier = Modifier.weight(1f))
+            if (!editingRange) {
+                ExtendLink(text = "↑ +30s") { extendClip(context, clip, NoteClipMode.ExtendBefore) }
+            }
+            ExtendLink(text = if (editingRange) "完成" else "調整範圍") {
+                if (editingRange) {
+                    editedPassage?.let(model::selectionFor)?.let { (startMs, endMs) ->
+                        NoteClipStore.get(context).update(clip.id) { it.copy(selectionStartMs = startMs, selectionEndMs = endMs) }
+                    }
+                    editedPassage = null
+                }
+                editingRange = !editingRange
+            }
+        }
+        NoteTranscriptView(
+            transcript = model.transcript,
+            passage = if (editingRange) editedPassage ?: model.passage else model.passage,
+            editable = editingRange,
+            referenceOffset = model.bookmarkOffset,
+            highlights = model.highlightSpans,
+            onTextTap = { offset -> model.sentenceAt(offset)?.let { toggleSentence(context, clip, it) } },
+            onPassageChange = { span -> editedPassage = span },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(320.dp),
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 16.dp, end = 8.dp, bottom = 8.dp),
+        ) {
             TextH70(
-                text = "點句子標重點，點灰色句子把範圍延伸過去",
+                text = if (editingRange) "拖兩端的把手，或長按後拖曳" else "點句子標重點，點灰色句子延伸範圍",
                 color = colors.primaryText02,
                 modifier = Modifier.weight(1f),
             )
-            ExtendLink(text = "↑ +30s") { extendClip(context, clip, NoteClipMode.ExtendBefore) }
-        }
-        var lastSpeaker: String? = null
-        clip.sentences.forEach { sentence ->
-            val inRange = clip.isInSelection(sentence)
-            val highlighted = clip.isHighlighted(sentence)
-            val speakerLabel = if (sentence.speaker != null && sentence.speaker != lastSpeaker) clip.speakerName(sentence.speaker) else null
-            lastSpeaker = sentence.speaker
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        if (highlighted) colors.primaryInteractive01.copy(alpha = 0.16f) else Color.Transparent,
-                        RoundedCornerShape(8.dp),
-                    )
-                    .clickable { toggleSentence(context, clip, sentence) }
-                    .padding(horizontal = 6.dp, vertical = 5.dp),
-            ) {
-                TextH70(
-                    text = NoteTranscript.formatTime(sentence.startMs),
-                    color = colors.primaryText02,
-                    fontWeight = FontWeight.W400,
-                    modifier = Modifier
-                        .width(44.dp)
-                        .padding(top = 2.dp),
-                )
-                Column(modifier = Modifier.weight(1f)) {
-                    if (speakerLabel != null) {
-                        TextH70(text = speakerLabel, color = colors.primaryText02)
-                    }
-                    TextP50(
-                        text = sentence.text,
-                        color = when {
-                            highlighted -> colors.primaryText01
-                            inRange -> colors.primaryText01
-                            else -> colors.primaryText02.copy(alpha = 0.55f)
-                        },
-                        fontWeight = if (highlighted) FontWeight.W600 else FontWeight.W400,
-                    )
-                }
-                if (highlighted) {
-                    Box(
-                        modifier = Modifier
-                            .padding(start = 6.dp, top = 6.dp)
-                            .size(6.dp)
-                            .background(colors.primaryInteractive01, RoundedCornerShape(50)),
-                    )
-                }
+            if (!editingRange) {
+                ExtendLink(text = "↓ +30s") { extendClip(context, clip, NoteClipMode.ExtendAfter) }
             }
-        }
-        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp)) {
-            ExtendLink(text = "↓ +30s") { extendClip(context, clip, NoteClipMode.ExtendAfter) }
         }
     }
 }
