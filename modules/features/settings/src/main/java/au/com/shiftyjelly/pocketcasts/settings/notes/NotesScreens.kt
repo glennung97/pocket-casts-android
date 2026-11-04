@@ -61,10 +61,12 @@ import au.com.shiftyjelly.pocketcasts.images.R as IR
 internal fun NotesApp(
     screen: NotesScreen,
     sheetClipId: String?,
+    playback: NotePlayback?,
     onNavigate: (NotesScreen) -> Unit,
     onOpenClip: (String) -> Unit,
     onCloseClip: () -> Unit,
     onPlay: (NoteClip) -> Unit,
+    onPlayFrom: (NoteClip, Long) -> Unit,
     onBack: () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -77,7 +79,13 @@ internal fun NotesApp(
             }
         }
         if (sheetClipId != null) {
-            NoteClipSheet(clipId = sheetClipId, onDismiss = onCloseClip, onPlay = onPlay)
+            NoteClipSheet(
+                clipId = sheetClipId,
+                playback = playback,
+                onDismiss = onCloseClip,
+                onPlay = onPlay,
+                onPlayFrom = onPlayFrom,
+            )
         }
     }
 }

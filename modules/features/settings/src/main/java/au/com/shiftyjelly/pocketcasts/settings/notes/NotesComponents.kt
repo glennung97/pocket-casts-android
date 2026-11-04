@@ -62,27 +62,32 @@ internal fun NoteClip.isInSelection(sentence: NoteSentence): Boolean {
     return sentence.endMs > selectionStartMs && sentence.startMs < selectionEndMs
 }
 
-/** Tapping inside the selection toggles a highlight; tapping outside stretches the selection to that sentence. */
+/**
+ * Long press: toggles a sentence as a key point. A sentence outside the selection is highlighted and the
+ * selection stretches to include it, so every key point is part of the note.
+ */
 internal fun toggleSentence(context: Context, clip: NoteClip, sentence: NoteSentence) {
-    val store = NoteClipStore.get(context)
-    if (clip.isInSelection(sentence)) {
-        store.update(clip.id) { current ->
-            val starts = if (sentence.startMs in current.highlightStarts) {
-                current.highlightStarts - sentence.startMs
-            } else {
-                current.highlightStarts + sentence.startMs
-            }
-            current.copy(highlightStarts = starts)
-        }
-    } else {
-        store.update(clip.id) { current ->
+    NoteClipStore.get(context).update(clip.id) { current ->
+        if (sentence.startMs in current.highlightStarts) {
+            current.copy(highlightStarts = current.highlightStarts - sentence.startMs)
+        } else {
             current.copy(
+                highlightStarts = current.highlightStarts + sentence.startMs,
                 selectionStartMs = minOf(current.selectionStartMs, sentence.startMs),
                 selectionEndMs = maxOf(current.selectionEndMs, sentence.endMs),
             )
         }
     }
 }
+
+/** The small line that explains the gestures, the same wherever a clip's transcript is shown. */
+internal const val TRANSCRIPT_GESTURE_HINT = "點一下從這句播放 · 長按標重點"
+
+/** Where something is playing, so a clip's transcript can light up and follow the line being played. */
+data class NotePlayback(
+    val episodeUuid: String,
+    val positionMs: Long,
+)
 
 internal fun extendClip(context: Context, clip: NoteClip, mode: NoteClipMode) {
     NoteClipStore.get(context).update(clip.id) { it.copy(status = NoteClipStatus.Processing) }

@@ -72,6 +72,15 @@ internal class NoteTranscriptModel(private val clip: NoteClip) {
         return sentences[index]
     }
 
+    /** The span of the sentence playing at [timeMs], or null when that time is outside this transcript. */
+    fun spanAtTime(timeMs: Long): TextSpan? {
+        val index = sentences.indexOfFirst { timeMs >= it.startMs && timeMs < it.endMs }
+            .takeIf { it >= 0 }
+            ?: sentences.indexOfLast { it.startMs <= timeMs }.takeIf { it >= 0 && timeMs < sentences.last().endMs + 1_500 }
+            ?: return null
+        return sentenceSpans[index]
+    }
+
     /** The selection times for a passage drawn with the handles, snapped out to whole sentences. */
     fun selectionFor(span: TextSpan): Pair<Long, Long>? {
         if (span.isEmpty) return null

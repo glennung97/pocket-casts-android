@@ -39,11 +39,17 @@ object SaveToNotes {
 
     /** Plays the clip's episode from the start of its selection. */
     suspend fun playClip(playbackManager: PlaybackManager, clip: NoteClip) {
-        val positionMs = (if (clip.status == NoteClipStatus.Ready) clip.selectionStartMs else clip.bookmarkMs).toInt()
-        if (playbackManager.getCurrentEpisode()?.uuid != clip.episodeUuid) {
-            playbackManager.playNowSuspend(episodeUuid = clip.episodeUuid)
+        val positionMs = if (clip.status == NoteClipStatus.Ready) clip.selectionStartMs else clip.bookmarkMs
+        playFrom(playbackManager, clip.episodeUuid, positionMs)
+    }
+
+    /** Plays [episodeUuid] from [positionMs], loading the episode first when something else is playing. */
+    suspend fun playFrom(playbackManager: PlaybackManager, episodeUuid: String, positionMs: Long) {
+        NotesReel.stop()
+        if (playbackManager.getCurrentEpisode()?.uuid != episodeUuid) {
+            playbackManager.playNowSuspend(episodeUuid = episodeUuid)
         }
-        playbackManager.seekToTimeMsSuspend(positionMs)
+        playbackManager.seekToTimeMsSuspend(positionMs.toInt())
         playbackManager.playIfNotPlaying()
     }
 

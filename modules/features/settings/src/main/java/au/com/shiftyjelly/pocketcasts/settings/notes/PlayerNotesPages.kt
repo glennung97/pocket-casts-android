@@ -110,6 +110,7 @@ fun PlayerNotesPage(
     colors: PlayerNotesColors,
     onStartReel: (List<NoteClip>, String?) -> Unit,
     onStopReel: () -> Unit,
+    onPlayFrom: (NoteClip, Long) -> Unit,
     onOpenClip: (String) -> Unit,
     onOpenNotebook: () -> Unit,
     modifier: Modifier = Modifier,
@@ -172,6 +173,10 @@ fun PlayerNotesPage(
                     if (reelForEpisode != null) {
                         ReelProgress(reel = reelForEpisode, clips = readyClips, positionMs = positionMs, colors = colors)
                     }
+                    TextH70(
+                        text = "$TRANSCRIPT_GESTURE_HINT · 「編輯」調整範圍和筆記",
+                        color = colors.secondaryText,
+                    )
                     RowButton(
                         text = if (reelForEpisode != null) "停止連播" else "▶ 連播所有重點",
                         onClick = { if (reelForEpisode != null) onStopReel() else onStartReel(readyClips, null) },
@@ -185,10 +190,11 @@ fun PlayerNotesPage(
         items(clips, key = { it.id }) { clip ->
             PlayerClipCard(
                 clip = clip,
-                positionMs = positionMs,
+                positionMs = positionMs.takeIf { episodeUuid == clip.episodeUuid },
                 isPlaying = clip.id == playingClipId,
                 colors = colors,
                 onPlay = { onStartReel(readyClips, clip.id) },
+                onPlayFrom = { ms -> onPlayFrom(clip, ms) },
                 onOpen = { onOpenClip(clip.id) },
             )
         }
@@ -227,68 +233,79 @@ private fun ReelProgress(reel: NotesReel.State, clips: List<NoteClip>, positionM
 @Composable
 private fun PlayerClipCard(
     clip: NoteClip,
-    positionMs: Long,
+    positionMs: Long?,
     isPlaying: Boolean,
     colors: PlayerNotesColors,
     onPlay: () -> Unit,
+    onPlayFrom: (Long) -> Unit,
     onOpen: () -> Unit,
 ) {
+    val context = LocalContext.current
     Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                if (isPlaying) colors.accent.copy(alpha = 0.16f) else colors.card,
+                if (isPlaying) colors.accent.copy(alpha = 0.14f) else colors.card,
                 RoundedCornerShape(12.dp),
             )
-            .clickable(onClick = onOpen)
-            .padding(14.dp),
+            .padding(top = 12.dp, bottom = 8.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 14.dp)) {
             TextH70(text = clip.rangeText(), color = colors.accent, modifier = Modifier.weight(1f))
             if (clip.status == NoteClipStatus.Ready) {
                 TextH70(
-                    text = if (isPlaying) "播放中" else "▶ 播放",
+                    text = if (isPlaying) "播放中" else "▶ 從頭播",
                     color = colors.accent,
                     modifier = Modifier
                         .clickable(onClick = onPlay)
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
                 )
             }
+            TextH70(
+                text = "編輯",
+                color = colors.accent,
+                modifier = Modifier
+                    .clickable(onClick = onOpen)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
         }
-        TextH50(text = clip.displayTitle(), color = colors.primaryText)
+        TextH50(text = clip.displayTitle(), color = colors.primaryText, modifier = Modifier.padding(horizontal = 14.dp))
         when (clip.status) {
-            NoteClipStatus.Processing -> TextP60(text = "轉錄中…", color = colors.secondaryText)
-            NoteClipStatus.Failed -> TextP60(text = clip.error ?: "發生錯誤", color = colors.secondaryText)
+            NoteClipStatus.Processing -> TextP60(
+                text = "轉錄中…",
+                color = colors.secondaryText,
+                modifier = Modifier.padding(horizontal = 14.dp),
+            )
+            NoteClipStatus.Failed -> TextP60(
+                text = clip.error ?: "發生錯誤",
+                color = colors.secondaryText,
+                modifier = Modifier.padding(horizontal = 14.dp),
+            )
             NoteClipStatus.Ready -> {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    clip.selectedSentences.forEach { sentence ->
-                        val current = isPlaying && positionMs in sentence.startMs until sentence.endMs
-                        val highlighted = clip.isHighlighted(sentence)
-                        TextP50(
-                            text = sentence.text,
-                            color = when {
-                                current -> colors.primaryText
-                                highlighted -> colors.primaryText
-                                else -> colors.secondaryText
-                            },
-                            fontWeight = if (current || highlighted) FontWeight.W600 else FontWeight.W400,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    when {
-                                        current -> colors.accent.copy(alpha = 0.28f)
-                                        highlighted -> colors.accent.copy(alpha = 0.12f)
-                                        else -> Color.Transparent
-                                    },
-                                    RoundedCornerShape(6.dp),
-                                )
-                                .padding(horizontal = 6.dp, vertical = 3.dp),
-                        )
-                    }
-                }
+                val model = remember(clip) { NoteTranscriptModel(clip) }
+                NoteTranscriptView(
+                    transcript = model.transcript,
+                    passage = model.passage,
+                    highlights = model.highlightSpans,
+                    referenceOffset = model.bookmarkOffset,
+                    currentSpan = positionMs?.let { model.spanAtTime(it) },
+                    anchorFraction = 0.4f,
+                    primaryTextColor = colors.primaryText,
+                    secondaryTextColor = colors.secondaryText.copy(alpha = 0.7f),
+                    editableHighlightColor = colors.accent,
+                    onTextTap = { offset -> model.sentenceAt(offset)?.let { onPlayFrom(it.startMs) } },
+                    onTextLongPress = { offset -> model.sentenceAt(offset)?.let { toggleSentence(context, clip, it) } },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(240.dp),
+                )
                 if (clip.note.isNotBlank()) {
-                    TextP60(text = "筆記：${clip.note}", color = colors.primaryText)
+                    TextP60(
+                        text = "筆記：${clip.note}",
+                        color = colors.primaryText,
+                        modifier = Modifier.padding(horizontal = 14.dp),
+                    )
                 }
             }
         }
@@ -336,7 +353,7 @@ fun PlayerTranscriptPage(
 
     Column(modifier = modifier.fillMaxSize().background(colors.background)) {
         Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            TextH70(text = "節目方提供的逐字稿 · 點一句跳到那裡", color = colors.secondaryText)
+            TextH70(text = "節目方提供的逐字稿 · 點一下從這句播放", color = colors.secondaryText)
             Spacer(Modifier.width(4.dp))
         }
         NoteTranscriptView(

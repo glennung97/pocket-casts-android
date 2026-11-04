@@ -44,7 +44,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -57,6 +59,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -93,11 +96,17 @@ internal fun NoteTranscriptView(
     highlights: List<TextSpan> = emptyList(),
     primaryTextColor: Color = Color.Unspecified,
     secondaryTextColor: Color = Color.Unspecified,
+    currentSpan: TextSpan? = null,
     onTextTap: ((Int) -> Unit)? = null,
+    onTextLongPress: ((Int) -> Unit)? = null,
     onPassageChange: (TextSpan) -> Unit = {},
 ) {
     val theme = rememberNoteTranscriptColors(primaryTextColor, secondaryTextColor, editableHighlightColor)
     val currentTextTap by rememberUpdatedState(onTextTap)
+    val currentTextLongPress by rememberUpdatedState(onTextLongPress)
+    val haptics = LocalHapticFeedback.current
+    // While the clip is playing, follow the line being played instead of the passage.
+    val scrollTarget = if (editable) passage else currentSpan ?: passage
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
@@ -121,7 +130,7 @@ internal fun NoteTranscriptView(
 
     val editableColor = editableTextColor.takeOrElse { theme.primaryText }
     val highlightColor = editableHighlightColor.takeOrElse { theme.highlightText }
-    val text = remember(transcript, passage, highlights, theme, editable, editableColor, highlightColor) {
+    val text = remember(transcript, passage, highlights, currentSpan, theme, editable, editableColor, highlightColor) {
         buildAnnotatedString {
             append(transcript.displayText)
             val baseColor = if (editable) editableColor else theme.secondaryText
@@ -141,6 +150,17 @@ internal fun NoteTranscriptView(
                 highlights.filterNot { it.isEmpty }.forEach { span ->
                     addStyle(
                         SpanStyle(color = theme.primaryText, background = highlightColor.copy(alpha = 0.22f), fontWeight = FontWeight.SemiBold),
+                        span.start.coerceIn(0, transcript.displayText.length),
+                        span.end.coerceIn(0, transcript.displayText.length),
+                    )
+                }
+                currentSpan?.takeUnless { it.isEmpty }?.let { span ->
+                    addStyle(
+                        SpanStyle(
+                            color = theme.primaryText,
+                            background = highlightColor.copy(alpha = 0.4f),
+                            textDecoration = TextDecoration.Underline,
+                        ),
                         span.start.coerceIn(0, transcript.displayText.length),
                         span.end.coerceIn(0, transcript.displayText.length),
                     )
@@ -202,10 +222,18 @@ internal fun NoteTranscriptView(
                                 }
                         } else {
                             Modifier.pointerInput(transcript) {
-                                detectTapGestures { position ->
-                                    val result = currentLayout ?: return@detectTapGestures
-                                    currentTextTap?.invoke(result.getOffsetForPosition(position))
-                                }
+                                detectTapGestures(
+                                    onTap = { position ->
+                                        val result = currentLayout ?: return@detectTapGestures
+                                        currentTextTap?.invoke(result.getOffsetForPosition(position))
+                                    },
+                                    onLongPress = { position ->
+                                        val result = currentLayout ?: return@detectTapGestures
+                                        val handler = currentTextLongPress ?: return@detectTapGestures
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        handler(result.getOffsetForPosition(position))
+                                    },
+                                )
                             }
                         },
                     ),
@@ -265,15 +293,17 @@ internal fun NoteTranscriptView(
         }
     }
 
-    LaunchedEffect(layout, viewportHeight, passage) {
+    LaunchedEffect(layout, viewportHeight, scrollTarget) {
         val result = layout ?: return@LaunchedEffect
-        if (!scrollToPassage || passage == null || viewportHeight == 0 || passage == scrolledPassage) return@LaunchedEffect
+        val target = scrollTarget
+        if (!scrollToPassage || target == null || viewportHeight == 0 || target == scrolledPassage) return@LaunchedEffect
         if (editable && hasScrolled) return@LaunchedEffect
-        val box = result.getBoundingBox(passage.start.coerceIn(0, transcript.displayText.length.coerceAtLeast(1) - 1))
+        val box = result.getBoundingBox(target.start.coerceIn(0, transcript.displayText.length.coerceAtLeast(1) - 1))
         val topPadding = with(density) { TopFade.toPx() }
-        val target = (box.top + topPadding - viewportHeight * anchorFraction + box.height / 2).roundToInt()
-        scrollState.scrollTo(target.coerceIn(0, scrollState.maxValue))
-        scrolledPassage = passage
+        val scrollTo = (box.top + topPadding - viewportHeight * anchorFraction + box.height / 2).roundToInt()
+            .coerceIn(0, scrollState.maxValue)
+        if (hasScrolled) scrollState.animateScrollTo(scrollTo) else scrollState.scrollTo(scrollTo)
+        scrolledPassage = target
         skipFade = SystemClock.elapsedRealtime() - startTimeMs < FadeInThresholdMs
         hasScrolled = true
     }

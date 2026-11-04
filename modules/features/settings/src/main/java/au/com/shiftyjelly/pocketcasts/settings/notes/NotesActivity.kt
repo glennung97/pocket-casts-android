@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -18,6 +19,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.notes.NoteClip
 import au.com.shiftyjelly.pocketcasts.repositories.notes.NoteClipStore
 import au.com.shiftyjelly.pocketcasts.repositories.notes.SaveToNotes
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
+import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackState
 import au.com.shiftyjelly.pocketcasts.ui.theme.Theme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -47,14 +49,19 @@ class NotesActivity : AppCompatActivity() {
         setContentView(
             ComposeView(this).apply {
                 setContent {
+                    val playbackState by playbackManager.playbackStateFlow.collectAsState(initial = PlaybackState())
                     AppThemeWithBackground(theme.activeTheme) {
                         NotesApp(
                             screen = backStack.last(),
                             sheetClipId = sheetClipId,
+                            playback = NotePlayback(playbackState.episodeUuid, playbackState.positionMs.toLong()),
                             onNavigate = { backStack.add(it) },
                             onOpenClip = { sheetClipId = it },
                             onCloseClip = { sheetClipId = null },
                             onPlay = { clip -> play(clip) },
+                            onPlayFrom = { clip, positionMs ->
+                                lifecycleScope.launch { SaveToNotes.playFrom(playbackManager, clip.episodeUuid, positionMs) }
+                            },
                             onBack = this@NotesActivity::goBack,
                         )
                     }
@@ -113,11 +120,16 @@ class NoteClipSheetActivity : ComponentActivity() {
         setContentView(
             ComposeView(this).apply {
                 setContent {
+                    val playbackState by playbackManager.playbackStateFlow.collectAsState(initial = PlaybackState())
                     AppTheme(theme.activeTheme) {
                         NoteClipSheet(
                             clipId = clipId,
+                            playback = NotePlayback(playbackState.episodeUuid, playbackState.positionMs.toLong()),
                             onDismiss = { finish() },
                             onPlay = { clip -> lifecycleScope.launch { SaveToNotes.playClip(playbackManager, clip) } },
+                            onPlayFrom = { clip, positionMs ->
+                                lifecycleScope.launch { SaveToNotes.playFrom(playbackManager, clip.episodeUuid, positionMs) }
+                            },
                             onOpenNotebook = {
                                 startActivity(NotesActivity.intent(this@NoteClipSheetActivity).putExtra(SaveToNotes.EXTRA_CLIP_ID, clipId))
                                 finish()

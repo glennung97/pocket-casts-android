@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
+import androidx.lifecycle.lifecycleScope
 import au.com.shiftyjelly.pocketcasts.compose.AppTheme
 import au.com.shiftyjelly.pocketcasts.compose.PlayerColors
 import au.com.shiftyjelly.pocketcasts.compose.PodcastColors
@@ -35,6 +36,7 @@ import au.com.shiftyjelly.pocketcasts.views.fragments.BaseFragment
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 /** The same podcast-tinted palette the player itself uses, in light and dark app themes alike. */
@@ -74,6 +76,9 @@ class PlayerTingjiNotesFragment : BaseFragment() {
                 colors = rememberPlayerNotesColors(theme.activeTheme, state.podcast),
                 onStartReel = { clips, fromClipId -> NotesReel.start(playbackManager, clips, fromClipId) },
                 onStopReel = { NotesReel.stop() },
+                onPlayFrom = { clip, positionMs ->
+                    lifecycleScope.launch { SaveToNotes.playFrom(playbackManager, clip.episodeUuid, positionMs) }
+                },
                 onOpenClip = { clipId -> startActivity(SaveToNotes.clipSheetIntent(requireContext(), clipId)) },
                 onOpenNotebook = { startActivity(NotesActivity.intent(requireContext())) },
                 modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),

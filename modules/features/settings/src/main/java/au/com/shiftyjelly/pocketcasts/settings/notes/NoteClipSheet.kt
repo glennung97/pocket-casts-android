@@ -71,8 +71,10 @@ import au.com.shiftyjelly.pocketcasts.localization.R as LR
 @Composable
 internal fun NoteClipSheet(
     clipId: String,
+    playback: NotePlayback?,
     onDismiss: () -> Unit,
     onPlay: (NoteClip) -> Unit,
+    onPlayFrom: (NoteClip, Long) -> Unit,
     onOpenNotebook: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
@@ -131,7 +133,7 @@ internal fun NoteClipSheet(
                         when (clip.status) {
                             NoteClipStatus.Processing -> ProcessingContent()
                             NoteClipStatus.Failed -> FailedContent(clip)
-                            NoteClipStatus.Ready -> ReadyContent(clip)
+                            NoteClipStatus.Ready -> ReadyContent(clip, playback, onPlayFrom)
                         }
                     }
                     SheetActions(clip = clip, onDismiss = onDismiss, onOpenNotebook = onOpenNotebook)
@@ -219,7 +221,7 @@ private fun FailedContent(clip: NoteClip) {
 }
 
 @Composable
-private fun ReadyContent(clip: NoteClip) {
+private fun ReadyContent(clip: NoteClip, playback: NotePlayback?, onPlayFrom: (NoteClip, Long) -> Unit) {
     val context = LocalContext.current
     var editingNote by remember(clip.id) { mutableStateOf(false) }
 
@@ -245,7 +247,7 @@ private fun ReadyContent(clip: NoteClip) {
         }
     }
 
-    TranscriptCard(clip)
+    TranscriptCard(clip, playback, onPlayFrom)
 
     if (clip.keyPoints.isNotEmpty()) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -286,7 +288,7 @@ private fun ReadyContent(clip: NoteClip) {
 }
 
 @Composable
-private fun TranscriptCard(clip: NoteClip) {
+private fun TranscriptCard(clip: NoteClip, playback: NotePlayback?, onPlayFrom: (NoteClip, Long) -> Unit) {
     val context = LocalContext.current
     val colors = MaterialTheme.theme.colors
     val model = remember(clip) { NoteTranscriptModel(clip) }
@@ -322,7 +324,9 @@ private fun TranscriptCard(clip: NoteClip) {
             editable = editingRange,
             referenceOffset = model.bookmarkOffset,
             highlights = model.highlightSpans,
-            onTextTap = { offset -> model.sentenceAt(offset)?.let { toggleSentence(context, clip, it) } },
+            currentSpan = playback?.takeIf { it.episodeUuid == clip.episodeUuid }?.let { model.spanAtTime(it.positionMs) },
+            onTextTap = { offset -> model.sentenceAt(offset)?.let { onPlayFrom(clip, it.startMs) } },
+            onTextLongPress = { offset -> model.sentenceAt(offset)?.let { toggleSentence(context, clip, it) } },
             onPassageChange = { span -> editedPassage = span },
             modifier = Modifier
                 .fillMaxWidth()
@@ -333,7 +337,7 @@ private fun TranscriptCard(clip: NoteClip) {
             modifier = Modifier.padding(start = 16.dp, end = 8.dp, bottom = 8.dp),
         ) {
             TextH70(
-                text = if (editingRange) "拖兩端的把手，或長按後拖曳" else "點句子標重點，點灰色句子延伸範圍",
+                text = if (editingRange) "拖兩端的把手，或長按後拖曳" else TRANSCRIPT_GESTURE_HINT,
                 color = colors.primaryText02,
                 modifier = Modifier.weight(1f),
             )
