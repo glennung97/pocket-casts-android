@@ -23,6 +23,7 @@ import au.com.shiftyjelly.pocketcasts.profile.whatsnew.WhatsNewFeedFragment
 import au.com.shiftyjelly.pocketcasts.referrals.ReferralsGuestPassFragment
 import au.com.shiftyjelly.pocketcasts.referrals.ReferralsGuestPassFragment.ReferralsPageType
 import au.com.shiftyjelly.pocketcasts.referrals.ReferralsViewModel
+import au.com.shiftyjelly.pocketcasts.settings.notes.NotesActivity
 import au.com.shiftyjelly.pocketcasts.settings.HelpFragment
 import au.com.shiftyjelly.pocketcasts.settings.SettingsFragment
 import au.com.shiftyjelly.pocketcasts.settings.onboarding.OnboardingFlow
@@ -174,6 +175,10 @@ class ProfileFragment :
     private fun goToSection(section: ProfileSection) {
         profileViewModel.onSectionClick(section)
         val fragment = when (section) {
+            ProfileSection.TingjiNotebook -> {
+                startActivity(NotesActivity.intent(requireContext()))
+                return
+            }
             ProfileSection.Stats -> StatsFragment()
             ProfileSection.Downloads -> ProfileEpisodeListFragment.newInstance(ProfileEpisodeListFragment.Mode.Downloaded)
             ProfileSection.CloudFiles -> CloudFilesFragment()

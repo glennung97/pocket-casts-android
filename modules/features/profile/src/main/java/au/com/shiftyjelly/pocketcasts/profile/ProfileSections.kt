@@ -85,6 +85,10 @@ internal enum class ProfileSection(
     @DrawableRes val iconId: Int,
     @StringRes val labelId: Int,
 ) {
+    TingjiNotebook(
+        iconId = IR.drawable.ic_book_open,
+        labelId = LR.string.tingji_notebook,
+    ),
     Stats(
         iconId = IR.drawable.ic_stats,
         labelId = LR.string.profile_navigation_stats,
@@ -123,6 +127,9 @@ internal enum class ProfileSection(
         fun visibleEntries(): List<ProfileSection> = entries.filter { section ->
             when (section) {
                 Blogs -> FeatureFlag.isEnabled(Feature.BLOGS)
+
+                // The Plus bookmarks list is replaced by the 聽記 notebook in this build.
+                Bookmarks -> false
                 else -> true
             }
         }

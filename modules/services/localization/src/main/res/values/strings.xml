@@ -3071,4 +3071,5 @@
     <!-- 聽記 (save to notes) -->
     <string name="player_tab_tingji_notes" translatable="false">筆記</string>
     <string name="player_tab_tingji_transcript" translatable="false">逐字稿</string>
+    <string name="tingji_notebook" translatable="false">聽記筆記本</string>
 </resources>

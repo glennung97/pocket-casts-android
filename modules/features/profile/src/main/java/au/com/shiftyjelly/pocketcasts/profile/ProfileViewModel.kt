@@ -199,6 +199,7 @@ class ProfileViewModel @Inject constructor(
 
     internal fun onSectionClick(section: ProfileSection) {
         val event = when (section) {
+            ProfileSection.TingjiNotebook -> return
             ProfileSection.Stats -> StatsShownEvent
             ProfileSection.Downloads -> DownloadsShownEvent
             ProfileSection.CloudFiles -> UploadedFilesShownEvent

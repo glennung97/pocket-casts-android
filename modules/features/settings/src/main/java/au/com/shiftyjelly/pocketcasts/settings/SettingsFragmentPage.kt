@@ -27,7 +27,6 @@ import au.com.shiftyjelly.pocketcasts.models.type.SignInState
 import au.com.shiftyjelly.pocketcasts.settings.about.AboutFragment
 import au.com.shiftyjelly.pocketcasts.settings.developer.DeveloperFragment
 import au.com.shiftyjelly.pocketcasts.settings.history.HistoryFragment
-import au.com.shiftyjelly.pocketcasts.settings.notes.NotesActivity
 import au.com.shiftyjelly.pocketcasts.settings.notifications.NotificationsSettingsFragment
 import au.com.shiftyjelly.pocketcasts.settings.onboarding.OnboardingFlow
 import au.com.shiftyjelly.pocketcasts.settings.onboarding.OnboardingLauncher
@@ -63,15 +62,6 @@ fun SettingsFragmentPage(
             contentPadding = PaddingValues(top = 8.dp, bottom = bottomInset + 8.dp),
             modifier = Modifier.background(MaterialTheme.theme.colors.primaryUi02),
         ) {
-            item {
-                SettingRow(
-                    primaryText = "聽記筆記本",
-                    secondaryText = "存到筆記的片段、API key 與 TickTick",
-                    icon = painterResource(IR.drawable.ic_bookmark),
-                    modifier = Modifier.rowModifier { context.startActivity(NotesActivity.intent(context)) },
-                )
-            }
-
             if (isDebug) {
                 item {
                     DeveloperRow(onClick = { openFragment(DeveloperFragment()) })

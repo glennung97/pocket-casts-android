@@ -15,8 +15,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import au.com.shiftyjelly.pocketcasts.compose.AppTheme
+import au.com.shiftyjelly.pocketcasts.compose.PlayerColors
+import au.com.shiftyjelly.pocketcasts.compose.PodcastColors
 import au.com.shiftyjelly.pocketcasts.compose.extensions.contentWithoutConsumedInsets
 import au.com.shiftyjelly.pocketcasts.compose.theme
+import au.com.shiftyjelly.pocketcasts.models.entity.Podcast
 import au.com.shiftyjelly.pocketcasts.models.to.Transcript
 import au.com.shiftyjelly.pocketcasts.repositories.notes.NotesReel
 import au.com.shiftyjelly.pocketcasts.repositories.notes.SaveToNotes
@@ -34,9 +37,12 @@ import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 import timber.log.Timber
 
+/** The same podcast-tinted palette the player itself uses, in light and dark app themes alike. */
 @Composable
-private fun rememberPlayerNotesColors(): PlayerNotesColors {
-    val playerColors = MaterialTheme.theme.rememberPlayerColorsOrDefault()
+private fun rememberPlayerNotesColors(themeType: Theme.ThemeType, podcast: Podcast?): PlayerNotesColors {
+    val playerColors = remember(themeType, podcast?.uuid, podcast?.backgroundColor) {
+        PlayerColors(themeType, podcast?.let { PodcastColors(it) } ?: PodcastColors.ForUserEpisode)
+    }
     return remember(playerColors) {
         PlayerNotesColors(
             background = playerColors.background01,
@@ -61,11 +67,11 @@ class PlayerTingjiNotesFragment : BaseFragment() {
         savedInstanceState: Bundle?,
     ) = contentWithoutConsumedInsets {
         val state by playbackManager.playbackStateFlow.collectAsState(initial = PlaybackState())
-        AppTheme(Theme.ThemeType.DARK) {
+        AppTheme(theme.activeTheme) {
             PlayerNotesPage(
                 episodeUuid = state.episodeUuid,
                 positionMs = state.positionMs.toLong(),
-                colors = rememberPlayerNotesColors(),
+                colors = rememberPlayerNotesColors(theme.activeTheme, state.podcast),
                 onStartReel = { clips, fromClipId -> NotesReel.start(playbackManager, clips, fromClipId) },
                 onStopReel = { NotesReel.stop() },
                 onOpenClip = { clipId -> startActivity(SaveToNotes.clipSheetIntent(requireContext(), clipId)) },
@@ -106,11 +112,11 @@ class PlayerTingjiTranscriptFragment : BaseFragment() {
             // Pocket Casts' generated transcript is a Plus feature, so only the publisher's is shown here.
             transcript = (loaded as? Transcript.Text)?.takeIf { !it.isGenerated }
         }
-        AppTheme(Theme.ThemeType.DARK) {
+        AppTheme(theme.activeTheme) {
             PlayerTranscriptPage(
                 transcript = transcript,
                 positionMs = state.positionMs.toLong(),
-                colors = rememberPlayerNotesColors(),
+                colors = rememberPlayerNotesColors(theme.activeTheme, state.podcast),
                 onSeek = { ms -> playbackManager.seekToTimeMs(ms.toInt()) },
                 modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection()),
             )

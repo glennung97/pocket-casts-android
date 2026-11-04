@@ -137,6 +137,7 @@ fun PlayerNotesPage(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = modifier
             .fillMaxSize()
+            .background(colors.background)
             .padding(horizontal = 16.dp),
     ) {
         item {
@@ -313,6 +314,7 @@ fun PlayerTranscriptPage(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = modifier
                 .fillMaxSize()
+                .background(colors.background)
                 .padding(32.dp),
         ) {
             TextH30(text = "載入逐字稿中…", color = colors.primaryText, textAlign = TextAlign.Center)
@@ -332,7 +334,7 @@ fun PlayerTranscriptPage(
     val currentOffset = model.referenceOffsetAt(positionMs)
     val currentSpan = currentOffset?.let { model.sentenceDisplaySpan(it) }
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize().background(colors.background)) {
         Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             TextH70(text = "節目方提供的逐字稿 · 點一句跳到那裡", color = colors.secondaryText)
             Spacer(Modifier.width(4.dp))
@@ -342,6 +344,9 @@ fun PlayerTranscriptPage(
             passage = currentSpan,
             highlights = savedSpans,
             anchorFraction = 0.35f,
+            primaryTextColor = colors.primaryText,
+            secondaryTextColor = colors.secondaryText.copy(alpha = 0.7f),
+            editableHighlightColor = colors.accent,
             onTextTap = { offset -> model.referenceTimeMsAt(offset)?.let(onSeek) },
             modifier = Modifier
                 .fillMaxWidth()

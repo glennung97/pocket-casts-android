@@ -91,10 +91,12 @@ internal fun NoteTranscriptView(
     editableHighlightColor: Color = Color.Unspecified,
     handleColor: Color = Color.Unspecified,
     highlights: List<TextSpan> = emptyList(),
+    primaryTextColor: Color = Color.Unspecified,
+    secondaryTextColor: Color = Color.Unspecified,
     onTextTap: ((Int) -> Unit)? = null,
     onPassageChange: (TextSpan) -> Unit = {},
 ) {
-    val theme = rememberNoteTranscriptColors()
+    val theme = rememberNoteTranscriptColors(primaryTextColor, secondaryTextColor, editableHighlightColor)
     val currentTextTap by rememberUpdatedState(onTextTap)
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
@@ -412,13 +414,13 @@ private data class NoteTranscriptColors(
 )
 
 @Composable
-private fun rememberNoteTranscriptColors(): NoteTranscriptColors {
+private fun rememberNoteTranscriptColors(primary: Color, secondary: Color, highlight: Color): NoteTranscriptColors {
     val colors = MaterialTheme.theme.colors
-    return remember(colors) {
+    return remember(colors, primary, secondary, highlight) {
         NoteTranscriptColors(
-            primaryText = colors.primaryText01,
-            secondaryText = colors.primaryText02,
-            highlightText = colors.primaryInteractive01,
+            primaryText = primary.takeOrElse { colors.primaryText01 },
+            secondaryText = secondary.takeOrElse { colors.primaryText02 },
+            highlightText = highlight.takeOrElse { colors.primaryInteractive01 },
         )
     }
 }
