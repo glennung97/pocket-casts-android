@@ -14,13 +14,21 @@ object NotesExport {
     }
 
     /** Markdown for TickTick's task content. The title is repeated at the top so copying the content gives a whole note. */
-    fun markdown(clips: List<NoteClip>): String {
+    fun markdown(clips: List<NoteClip>, summary: String? = null): String {
         val sorted = clips.sortedBy { it.selectionStartMs }
         val first = sorted.firstOrNull() ?: return ""
         val isPodcastEpisode = first.podcastTitle != "我的檔案"
         return buildString {
             appendLine("**${taskTitle(sorted)}**")
             if (isPodcastEpisode) appendLine("集數：$SHARE_HOST/episode/${first.episodeUuid}")
+            if (!summary.isNullOrBlank()) {
+                appendLine()
+                appendLine("## 整集筆記")
+                appendLine(summary.trim())
+                appendLine()
+                append("## 片段")
+                appendLine()
+            }
             sorted.forEach { clip ->
                 appendLine()
                 append("### ").append(NoteTranscript.formatTime(clip.selectionStartMs)).append(' ')
@@ -58,7 +66,7 @@ object NotesExport {
                 token = config.tickTickToken,
                 existing = config.tickTickTask(first.episodeUuid),
                 title = taskTitle(clips),
-                content = markdown(clips),
+                content = markdown(clips, NotesSummary.get(context, first.episodeUuid)?.text),
             )
         }
         config.setTickTickTask(first.episodeUuid, ref)

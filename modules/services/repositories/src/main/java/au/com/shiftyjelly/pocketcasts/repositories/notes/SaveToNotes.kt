@@ -19,6 +19,9 @@ import au.com.shiftyjelly.pocketcasts.models.entity.BaseEpisode
 import au.com.shiftyjelly.pocketcasts.models.entity.PodcastEpisode
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
 import java.util.UUID
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import au.com.shiftyjelly.pocketcasts.images.R as IR
 
@@ -33,7 +36,7 @@ object SaveToNotes {
     /** Saves the playing episode's current position. Returns the new clip's id, or null when nothing is playing. */
     suspend fun captureCurrent(context: Context, playbackManager: PlaybackManager): String? {
         val episode = playbackManager.getCurrentEpisode() ?: return null
-        val positionMs = playbackManager.getCurrentTimeMs(episode).toLong()
+        val positionMs = withContext(Dispatchers.Default) { playbackManager.getCurrentTimeMs(episode).toLong() }
         return capture(context, episode, positionMs)
     }
 
@@ -43,14 +46,26 @@ object SaveToNotes {
         playFrom(playbackManager, clip.episodeUuid, positionMs)
     }
 
-    /** Plays [episodeUuid] from [positionMs], loading the episode first when something else is playing. */
+    /**
+     * Plays [episodeUuid] from [positionMs], loading the episode first when something else is playing.
+     * Runs on the playback manager's own dispatcher: before the player exists, seeking writes the position to
+     * the database, which Room refuses on the main thread.
+     */
     suspend fun playFrom(playbackManager: PlaybackManager, episodeUuid: String, positionMs: Long) {
         NotesReel.stop()
-        if (playbackManager.getCurrentEpisode()?.uuid != episodeUuid) {
-            playbackManager.playNowSuspend(episodeUuid = episodeUuid)
+        try {
+            withContext(Dispatchers.Default) {
+                if (playbackManager.getCurrentEpisode()?.uuid != episodeUuid) {
+                    playbackManager.playNowSuspend(episodeUuid = episodeUuid)
+                }
+                playbackManager.seekToTimeMsSuspend(positionMs.toInt())
+                playbackManager.playIfNotPlaying()
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.e(e, "Could not play the clip")
         }
-        playbackManager.seekToTimeMsSuspend(positionMs.toInt())
-        playbackManager.playIfNotPlaying()
     }
 
     /** The pop-up that shows one clip over whatever screen is open. */

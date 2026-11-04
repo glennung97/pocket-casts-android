@@ -97,6 +97,10 @@ internal fun NoteTranscriptView(
     primaryTextColor: Color = Color.Unspecified,
     secondaryTextColor: Color = Color.Unspecified,
     currentSpan: TextSpan? = null,
+    // The official view fades in once it has scrolled to the passage. A user scroll can cancel that scroll and
+    // leave the text invisible, so it is off unless asked for.
+    fadeIn: Boolean = false,
+    userScrollEnabled: Boolean = true,
     onTextTap: ((Int) -> Unit)? = null,
     onTextLongPress: ((Int) -> Unit)? = null,
     onPassageChange: (TextSpan) -> Unit = {},
@@ -116,7 +120,7 @@ internal fun NoteTranscriptView(
     var skipFade by remember { mutableStateOf(false) }
     val startTimeMs = remember { SystemClock.elapsedRealtime() }
     val contentAlpha by animateFloatAsState(
-        targetValue = if (editable || !scrollToPassage || passage == null || hasScrolled) 1f else 0f,
+        targetValue = if (!fadeIn || editable || !scrollToPassage || passage == null || hasScrolled) 1f else 0f,
         animationSpec = if (skipFade) snap() else tween(),
         label = "transcriptFade",
     )
@@ -180,7 +184,7 @@ internal fun NoteTranscriptView(
             .onSizeChanged { viewportHeight = it.height }
             .alpha(contentAlpha)
             .fadingEdges(top = TopFade, bottom = if (editable) 0.dp else BottomFade)
-            .verticalScroll(scrollState),
+            .verticalScroll(scrollState, enabled = userScrollEnabled || editable),
     ) {
         val renderText: @Composable () -> Unit = {
             Text(

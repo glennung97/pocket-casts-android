@@ -130,7 +130,7 @@ fun PlayerNotesPage(
 
     LaunchedEffect(playingClipId) {
         val index = clips.indexOfFirst { it.id == playingClipId }
-        if (index >= 0) listState.animateScrollToItem(index + 1)
+        if (index >= 0) listState.animateScrollToItem(index + if (readyClips.isNotEmpty()) 2 else 1)
     }
 
     LazyColumn(
@@ -185,6 +185,18 @@ fun PlayerNotesPage(
                         textColor = colors.accentText,
                     )
                 }
+            }
+        }
+        if (readyClips.isNotEmpty()) {
+            item(key = "episode_summary") {
+                EpisodeSummaryCard(
+                    clips = clips,
+                    textColor = colors.primaryText,
+                    secondaryColor = colors.secondaryText,
+                    accentColor = colors.accent,
+                    accentTextColor = colors.accentText,
+                    background = colors.card,
+                )
             }
         }
         items(clips, key = { it.id }) { clip ->
@@ -291,6 +303,8 @@ private fun PlayerClipCard(
                     referenceOffset = model.bookmarkOffset,
                     currentSpan = positionMs?.let { model.spanAtTime(it) },
                     anchorFraction = 0.4f,
+                    // The page scrolls; the card only follows playback, so drags never get caught inside it.
+                    userScrollEnabled = false,
                     primaryTextColor = colors.primaryText,
                     secondaryTextColor = colors.secondaryText.copy(alpha = 0.7f),
                     editableHighlightColor = colors.accent,
@@ -298,7 +312,7 @@ private fun PlayerClipCard(
                     onTextLongPress = { offset -> model.sentenceAt(offset)?.let { toggleSentence(context, clip, it) } },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(240.dp),
+                        .height(200.dp),
                 )
                 if (clip.note.isNotBlank()) {
                     TextP60(

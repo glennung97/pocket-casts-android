@@ -54,6 +54,7 @@ import au.com.shiftyjelly.pocketcasts.repositories.notes.NoteClipStore
 import au.com.shiftyjelly.pocketcasts.repositories.notes.NoteTranscript
 import au.com.shiftyjelly.pocketcasts.repositories.notes.NotesConfig
 import au.com.shiftyjelly.pocketcasts.repositories.notes.NotesExport
+import au.com.shiftyjelly.pocketcasts.repositories.notes.NotesSummary
 import kotlinx.coroutines.launch
 import au.com.shiftyjelly.pocketcasts.images.R as IR
 
@@ -293,6 +294,17 @@ private fun ColumnScope.EpisodeScreen(
             }
             HorizontalDivider()
         }
+        item(key = "episode_summary") {
+            EpisodeSummaryCard(
+                clips = clips,
+                textColor = colors.primaryText01,
+                secondaryColor = colors.primaryText02,
+                accentColor = colors.primaryInteractive01,
+                accentTextColor = colors.primaryInteractive02,
+                background = colors.primaryUi02,
+                modifier = Modifier.padding(16.dp),
+            )
+        }
         items(clips, key = { it.id }) { clip ->
             ClipRow(clip = clip, onClick = { onOpenClip(clip.id) })
         }
@@ -311,7 +323,9 @@ private fun ColumnScope.EpisodeScreen(
             RowOutlinedButton(
                 text = "複製",
                 onClick = {
-                    if (readyClips.isNotEmpty()) copyToClipboard(context, NotesExport.markdown(readyClips))
+                    if (readyClips.isNotEmpty()) {
+                        copyToClipboard(context, NotesExport.markdown(readyClips, NotesSummary.get(context, screen.episodeUuid)?.text))
+                    }
                 },
                 includePadding = false,
                 modifier = Modifier.weight(1f),

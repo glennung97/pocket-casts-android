@@ -1,6 +1,7 @@
 package au.com.shiftyjelly.pocketcasts.repositories.notes
 
 import au.com.shiftyjelly.pocketcasts.repositories.playback.PlaybackManager
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import timber.log.Timber
 
 /**
  * Plays only the selected part of each clip, one after another. Stops by itself when the listener
@@ -25,7 +27,11 @@ object NotesReel {
         val currentClipId: String get() = clipIds[index]
     }
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    // The playback manager's own dispatcher; seeking before the player exists touches the database.
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { _, e ->
+        Timber.e(e, "Highlight reel stopped")
+        _state.value = null
+    })
     private var job: Job? = null
     private val _state = MutableStateFlow<State?>(null)
     val state: StateFlow<State?> = _state.asStateFlow()

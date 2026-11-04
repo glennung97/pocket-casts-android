@@ -52,6 +52,7 @@ import au.com.shiftyjelly.pocketcasts.compose.components.TextP60
 import au.com.shiftyjelly.pocketcasts.compose.theme
 import au.com.shiftyjelly.pocketcasts.repositories.notes.AiProvider
 import au.com.shiftyjelly.pocketcasts.repositories.notes.NotesConfig
+import au.com.shiftyjelly.pocketcasts.repositories.notes.NotesCrashLog
 import au.com.shiftyjelly.pocketcasts.repositories.notes.NotesExport
 import java.text.DateFormat
 import java.util.Date
@@ -78,6 +79,7 @@ internal fun ColumnScope.NotesSettingsScreen(
     var clientSecret by remember { mutableStateOf(config.tickTickClientSecret) }
     var pastedUrl by remember { mutableStateOf("") }
     var tickTickStatus by remember { mutableStateOf(tickTickStatusText(config)) }
+    var crashLog by remember { mutableStateOf(NotesCrashLog.read(context)) }
 
     ThemedTopAppBar(title = "聽記設定", onNavigationClick = onBack)
     Column(
@@ -202,6 +204,32 @@ internal fun ColumnScope.NotesSettingsScreen(
                     }
                 },
             )
+        }
+        crashLog?.let { log ->
+            SettingsGroup(title = "上次閃退紀錄") {
+                TextP60(
+                    text = "app 閃退時，原因會自動記在這裡。按「複製」後貼給 Claude 就能查原因。",
+                    color = colors.primaryText02,
+                )
+                TextP60(text = log.take(900), color = colors.primaryText01)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    RowOutlinedButton(
+                        text = "清除",
+                        includePadding = false,
+                        onClick = {
+                            NotesCrashLog.clear(context)
+                            crashLog = null
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    RowButton(
+                        text = "複製",
+                        onClick = { copyToClipboard(context, log) },
+                        includePadding = false,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
         }
         Spacer(Modifier.padding(bottom = 24.dp))
     }
